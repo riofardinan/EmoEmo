@@ -20,6 +20,42 @@ to the incremental setting rather than to a mistuned backbone.
 `utils/factory.py` raises a clear error for a method that is not registered
 yet, so nothing fails silently.
 
+### Comparing against ../bertgo
+
+`../bertgo` and this folder **deliberately report different things**, so their
+output files are not comparable side by side:
+
+| | reports | threshold | model |
+|---|---|---|---|
+| `../bertgo/output/run1/test_table4.txt` | per-emotion P/R/F1 | prob > 0.3 | one model, all 28 classes at once |
+| `results/*/summary.json` | mAP / maF1 / miF1 per task | prob > 0.5 | incremental |
+
+The first is the GoEmotions paper's format (Table 4) and exists to prove the
+replication. The second is EmoGrowth's format (Tables 1–3). They are not
+supposed to look alike.
+
+The relationship is that **bertgo is the Upper-bound row** of the EmoGrowth
+table — same backbone, same data, no incremental constraint. The comparison is
+valid because after the final task the incremental test set is exactly bertgo's
+test set: same 5,427 comments, same 28 columns.
+
+```bash
+python compare.py                    # builds the table, bertgo as Upper-bound
+python compare.py --protocol B0-I4
+python compare.py --per-emotion      # bertgo's Table 4 format, for every method
+```
+
+`--per-emotion` exists because `utils/metrics.py` reports **no precision or
+recall at all** — EmoGrowth does not publish them, so there is no
+`macro-average P R F1` line anywhere in `results/`. The flag reads the saved
+final-task logits and scores them exactly the way `../bertgo/metrics.py` does,
+putting the incremental methods and the upper bound in one table. Use
+`--threshold 0.5` to see the same breakdown at EmoGrowth's operating point.
+
+It rescores bertgo's saved predictions through `utils/metrics.py`, so every
+number comes from one implementation, and it warns if a final-task test set
+ever stops matching bertgo's.
+
 ### Reference numbers to aim at
 
 GoEmotions has 28 classes, so the paper's **Audio28** table (Table 3) is the
@@ -109,11 +145,29 @@ protocols (B0-I9, B0-I3, B15-I3, B15-I2).
 * **Test is cumulative**: after task *b*, every test comment carrying at least
   one class seen so far, scored over all seen classes with full labels.
 
-Class arrival order defaults to the order in `emotions.txt`
-(`"class_order": "file"`). `"shuffled"` permutes it with the seed, the
-PyCIL/EmoGrowth convention. Whichever you pick, it is recorded in
-`summary.json` — comparisons across methods are only meaningful at a fixed
-order, so keep it constant within a table.
+### Class order — read this before comparing runs
+
+The default is `"alphabetical"`, which is the paper's protocol. Appendix B.1:
+*"In the process of splitting emotion labels for incremental learning, we just
+follow the order of the alphabet without interfere."*
+
+**Alphabetical is not the same as the order in `emotions.txt`.** GoEmotions
+appends `neutral` as the 28th line, after the 27 alphabetical emotions, so
+under `"file"` order `neutral` sits at index 27 instead of its alphabetical
+index 20 (between `nervousness` and `optimism`). That matters a great deal:
+`neutral` carries **28% of all positive labels**, and putting it in the *final*
+task inflates last-task scores for any method that forgets — Finetune's
+micro-F1 reads 0.34 under `"file"` order but 0.10 with `neutral` excluded.
+Under alphabetical order `neutral` falls in a middle task in all four
+protocols, and the artefact disappears.
+
+`"shuffled"` permutes with the seed. The paper does not shuffle, but its
+Limitations section calls out class order as unexplored, so this is available
+for a robustness check.
+
+The order actually used is recorded in `summary.json`, and `compare.py` warns
+when a result was produced under a non-alphabetical order. Comparisons are only
+meaningful at a fixed order — keep it constant within a table.
 
 ### Backbone
 
@@ -154,6 +208,36 @@ computed after the fact.
 
 Reported as **Avg. Acc** (mean across tasks) and **Last Acc** (after the final
 task), matching the paper's columns.
+
+### How faithful is this to EmoGrowth?
+
+Verified identical to `EmoGrowth/models/*_ml.py`: the Finetune and LwF loss
+functions (transcribed and diffed, 0.0), `lamda = 3`, the KRT instance-splitting
+protocol, the cumulative test construction, the metrics, and the protocol
+splits.
+
+Deliberately different, and worth stating in any write-up:
+
+| | EmoGrowth (Audio28, App. B.4) | here |
+|---|---|---|
+| Backbone | frozen precomputed features | BERT fine-tuned end-to-end |
+| Optimiser | Adam, β₂ = 0.9999 | BertAdam, β₂ = 0.999 |
+| LR / weight decay | 1e-3 / 0 | 5e-5 / 0.01 |
+| Schedule | none | warmup + linear decay |
+| Epochs | 45 / 40 | 4 / 4 |
+| Batch | 128 | 16 |
+
+The optimisation column follows `../bertgo` rather than EmoGrowth on purpose:
+these are BERT hyperparameters, and EmoGrowth's LR of 1e-3 would destroy a
+pretrained transformer. The frozen-vs-fine-tuned backbone is the deeper
+difference — it is why Finetune's mAP here (14.5) falls further than the
+paper's (27.3) even though the F1 figures line up (10.6 vs 9.2). Fine-tuning
+lets the *features* drift, not just the classifier, so ranking ability is lost
+too. A frozen-backbone variant would isolate this.
+
+The datasets also differ in character, which limits how far absolute numbers
+travel: Audio28 has 5.27 labels per instance (density 0.19), GoEmotions has
+1.17 (density 0.042) — nearly single-label.
 
 ### Methods
 

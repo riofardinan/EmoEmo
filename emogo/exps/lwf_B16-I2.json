@@ -4,7 +4,7 @@
     "protocol": "B16-I2",
     "seed": 1993,
     "drop_neutral": false,
-    "class_order": "file",
+    "class_order": "alphabetical",
     "model_name": "bert-base-cased",
     "max_seq_length": 50,
     "classifier_dropout": 0.1,

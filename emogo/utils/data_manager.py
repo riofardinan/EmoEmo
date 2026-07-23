@@ -83,12 +83,26 @@ class GoEmotionsDataManager:
     def _build_class_order(self) -> List[int]:
         """Order in which classes arrive.
 
-        'file'     - the order in emotions.txt (deterministic, the default)
-        'shuffled' - permuted with cfg.seed, the PyCIL/EmoGrowth convention
+        'alphabetical' - strict alphabetical order. This is the paper's
+            protocol, stated in Appendix B.1: "In the process of splitting
+            emotion labels for incremental learning, we just follow the order
+            of the alphabet without interfere." It is the default.
+        'file'     - the order in emotions.txt. NOT the same thing: GoEmotions
+            appends `neutral` as the last line, after the 27 alphabetical
+            emotions, so `neutral` lands at index 27 instead of its alphabetical
+            index 20 (between `nervousness` and `optimism`). Since `neutral`
+            carries 28% of all positive labels, putting it in the final task
+            inflates last-task scores for any method that forgets. Kept only
+            for comparison with earlier runs.
+        'shuffled' - permuted with cfg.seed. The paper does not shuffle, but
+            its Limitations section flags class order as unexplored, so this
+            is here for a robustness check.
         or an explicit list of emotion names in cfg.class_order.
         """
         order_spec = self.cfg.class_order
         n = len(self.emotions)
+        if order_spec == "alphabetical":
+            return sorted(range(n), key=lambda i: self.emotions[i])
         if order_spec == "file":
             return list(range(n))
         if order_spec == "shuffled":

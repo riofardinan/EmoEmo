@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from transformers import BertTokenizerFast
 
-from utils.config import Config
+from utils.config import Config, effective_config
 from utils.data_manager import GoEmotionsDataManager
 from utils.factory import get_model
 from utils.metrics import METRIC_NAMES
@@ -61,7 +61,9 @@ def train(cfg: Config):
     set_seed(cfg.seed)
 
     logger.info("Run: %s", cfg.run_name)
-    logger.info("Config: %s", json.dumps(cfg.to_dict(), indent=2))
+    # Only the settings this method actually reads — other methods' knobs would
+    # be misleading noise here.
+    logger.info("Config: %s", json.dumps(effective_config(cfg), indent=2))
 
     tokenizer = BertTokenizerFast.from_pretrained(
         cfg.model_name, do_lower_case=cfg.do_lower_case
@@ -111,7 +113,7 @@ def train(cfg: Config):
 
     summary = {
         "run_name": cfg.run_name,
-        "config": cfg.to_dict(),
+        "config": effective_config(cfg),
         "class_order": data_manager.ordered_emotions,
         "task_sizes": [data_manager.get_task_size(t)
                        for t in range(data_manager.nb_tasks)],

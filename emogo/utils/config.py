@@ -38,8 +38,11 @@ class Config:
     # GoEmotions ships 27 emotions + neutral. Keeping neutral gives 28 classes,
     # matching the paper's Audio28 protocols.
     drop_neutral: bool = False
-    # "file" | "shuffled" | explicit list of emotion names
-    class_order: Union[str, List[str]] = "file"
+    # "alphabetical" | "file" | "shuffled" | explicit list of emotion names.
+    # Alphabetical is the paper's protocol (Appendix B.1). Note this is NOT the
+    # order in emotions.txt, which appends `neutral` last — see
+    # utils/data_manager._build_class_order.
+    class_order: Union[str, List[str]] = "alphabetical"
 
     # Filled in from `protocol` by __post_init__.
     init_cls: int = 0
@@ -138,6 +141,33 @@ class Config:
         d = dataclasses.asdict(self)
         d["device"] = str(self.device)
         return d
+
+
+# Fields that only apply to particular methods. Anything not listed here is
+# used by every run. Used to keep the logged config honest — a Finetune run
+# should not print AESL's lambdas or the VAD lexicon path as if it used them.
+METHOD_ONLY_FIELDS: Dict[str, set] = {
+    "lwf": {"lwf_lamda"},
+    "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
+    "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
+             "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",
+             "vad_lexicon_path", "use_vad_dims"},
+}
+METHOD_ONLY_FIELDS["clif"] = METHOD_ONLY_FIELDS["aesl"]
+
+
+def effective_config(cfg: "Config") -> Dict[str, Any]:
+    """cfg.to_dict() minus the fields other methods own.
+
+    Returns only the settings that actually influence this run.
+    """
+    method = cfg.method.lower()
+    irrelevant = set()
+    for name, fields in METHOD_ONLY_FIELDS.items():
+        if name != method:
+            irrelevant |= fields
+    irrelevant -= METHOD_ONLY_FIELDS.get(method, set())
+    return {k: v for k, v in cfg.to_dict().items() if k not in irrelevant}
 
 
 def load_config(path: str, overrides: Dict[str, Any] = None) -> Config:

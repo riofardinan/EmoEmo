@@ -1,0 +1,184 @@
+2026-07-23 12:32:37,503 [trainer.py] Run: emogo_lwf_B0-I7_seed1993
+2026-07-23 12:32:37,503 [trainer.py] Config: {
+  "prefix": "emogo",
+  "method": "lwf",
+  "protocol": "B0-I7",
+  "seed": 1993,
+  "data_dir": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data",
+  "train_fname": "train.tsv",
+  "test_fname": "test.tsv",
+  "emotion_file": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data\\emotions.txt",
+  "drop_neutral": false,
+  "class_order": "file",
+  "init_cls": 7,
+  "increment": 7,
+  "total_class": 28,
+  "model_name": "bert-base-cased",
+  "do_lower_case": false,
+  "max_seq_length": 50,
+  "classifier_dropout": 0.1,
+  "batch_size": 16,
+  "eval_batch_size": 64,
+  "learning_rate": 5e-05,
+  "init_epochs": 4,
+  "epochs": 4,
+  "warmup_proportion": 0.1,
+  "weight_decay_rate": 0.01,
+  "adam_beta1": 0.9,
+  "adam_beta2": 0.999,
+  "adam_epsilon": 1e-06,
+  "max_grad_norm": 1.0,
+  "exclude_from_weight_decay": [
+    "LayerNorm",
+    "layer_norm",
+    "bias"
+  ],
+  "drop_last": true,
+  "fp16": false,
+  "num_workers": 4,
+  "lwf_lamda": 3.0,
+  "memory_size": 500,
+  "memory_per_class": 20,
+  "fixed_memory": true,
+  "buffer_type": "prs",
+  "feature_dim": 64,
+  "lamda_le": 0.005,
+  "lamda_kd_logits": 1.0,
+  "lamda_kd_relation_data": 1.0,
+  "lamda_kd_relation_aff": 0.1,
+  "ld": false,
+  "vad_lexicon_path": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data\\NRC-VAD-Lexicon-v2.1.txt",
+  "use_vad_dims": [
+    0,
+    1,
+    2
+  ],
+  "output_dir": "./results",
+  "device": "cuda"
+}
+2026-07-23 12:32:38,032 [_http.py] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-07-23 12:32:39,135 [data_manager.py] Class order: ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion', 'curiosity', 'desire', 'disappointment', 'disapproval', 'disgust', 'embarrassment', 'excitement', 'fear', 'gratitude', 'grief', 'joy', 'love', 'nervousness', 'optimism', 'pride', 'realization', 'relief', 'remorse', 'sadness', 'surprise', 'neutral']
+2026-07-23 12:32:39,136 [data_manager.py] Task sizes: [7, 7, 7, 7] (4 tasks)
+2026-07-23 12:32:40,132 [data_manager.py] Loaded train.tsv: 43410 examples
+2026-07-23 12:32:40,381 [data_manager.py] Loaded test.tsv: 5427 examples
+2026-07-23 12:32:41,086 [finetune.py] Task 0 — learning classes 0-7: ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion']
+2026-07-23 12:32:41,088 [data_manager.py] task 0 train: 14889 samples, 7 label columns
+2026-07-23 12:32:41,089 [data_manager.py] task 0 test: 1810 samples, 7 label columns
+2026-07-23 12:32:41,322 [finetune.py] Task 0 — 4 epochs x 930 steps = 3720 steps (warmup 372)
+2026-07-23 12:33:39,645 [finetune.py] Task 0 epoch 1/4 — loss 0.2675 (58.3s)
+2026-07-23 12:34:38,542 [finetune.py] Task 0 epoch 2/4 — loss 0.1577 (58.9s)
+2026-07-23 12:35:38,252 [finetune.py] Task 0 epoch 3/4 — loss 0.0980 (59.7s)
+2026-07-23 12:36:07,630 [trainer.py] Run: emogo_lwf_B0-I7_seed1993
+2026-07-23 12:36:07,630 [trainer.py] Config: {
+  "prefix": "emogo",
+  "method": "lwf",
+  "protocol": "B0-I7",
+  "seed": 1993,
+  "data_dir": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data",
+  "train_fname": "train.tsv",
+  "test_fname": "test.tsv",
+  "emotion_file": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data\\emotions.txt",
+  "drop_neutral": false,
+  "class_order": "file",
+  "init_cls": 7,
+  "increment": 7,
+  "total_class": 28,
+  "model_name": "bert-base-cased",
+  "do_lower_case": false,
+  "max_seq_length": 50,
+  "classifier_dropout": 0.1,
+  "batch_size": 16,
+  "eval_batch_size": 64,
+  "learning_rate": 5e-05,
+  "init_epochs": 4,
+  "epochs": 4,
+  "warmup_proportion": 0.1,
+  "weight_decay_rate": 0.01,
+  "adam_beta1": 0.9,
+  "adam_beta2": 0.999,
+  "adam_epsilon": 1e-06,
+  "max_grad_norm": 1.0,
+  "exclude_from_weight_decay": [
+    "LayerNorm",
+    "layer_norm",
+    "bias"
+  ],
+  "drop_last": true,
+  "fp16": false,
+  "num_workers": 4,
+  "lwf_lamda": 3.0,
+  "memory_size": 500,
+  "memory_per_class": 20,
+  "fixed_memory": true,
+  "buffer_type": "prs",
+  "feature_dim": 64,
+  "lamda_le": 0.005,
+  "lamda_kd_logits": 1.0,
+  "lamda_kd_relation_data": 1.0,
+  "lamda_kd_relation_aff": 0.1,
+  "ld": false,
+  "vad_lexicon_path": "C:\\Users\\User\\Documents\\Rio Fardinan\\EmoEmo\\emogo\\data\\NRC-VAD-Lexicon-v2.1.txt",
+  "use_vad_dims": [
+    0,
+    1,
+    2
+  ],
+  "output_dir": "./results",
+  "device": "cuda"
+}
+2026-07-23 12:36:08,309 [_http.py] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-07-23 12:36:09,395 [data_manager.py] Class order: ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion', 'curiosity', 'desire', 'disappointment', 'disapproval', 'disgust', 'embarrassment', 'excitement', 'fear', 'gratitude', 'grief', 'joy', 'love', 'nervousness', 'optimism', 'pride', 'realization', 'relief', 'remorse', 'sadness', 'surprise', 'neutral']
+2026-07-23 12:36:09,395 [data_manager.py] Task sizes: [7, 7, 7, 7] (4 tasks)
+2026-07-23 12:36:10,373 [data_manager.py] Loaded train.tsv: 43410 examples
+2026-07-23 12:36:10,617 [data_manager.py] Loaded test.tsv: 5427 examples
+2026-07-23 12:36:11,340 [finetune.py] Task 0 — learning classes 0-7: ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion']
+2026-07-23 12:36:11,342 [data_manager.py] task 0 train: 14889 samples, 7 label columns
+2026-07-23 12:36:11,343 [data_manager.py] task 0 test: 1810 samples, 7 label columns
+2026-07-23 12:36:11,572 [finetune.py] Task 0 — 4 epochs x 930 steps = 3720 steps (warmup 372)
+2026-07-23 12:37:13,687 [finetune.py] Task 0 epoch 1/4 — loss 0.2675 (62.1s)
+2026-07-23 12:38:12,496 [finetune.py] Task 0 epoch 2/4 — loss 0.1577 (58.8s)
+2026-07-23 12:39:10,399 [finetune.py] Task 0 epoch 3/4 — loss 0.0980 (57.9s)
+2026-07-23 12:40:08,939 [finetune.py] Task 0 epoch 4/4 — loss 0.0624 (58.5s)
+2026-07-23 12:40:14,813 [trainer.py] == Task 1/4 done in 243.5s — mAP 0.7605 | maF1 0.7189 | miF1 0.7373
+2026-07-23 12:40:14,813 [trainer.py] mAP curve:    [0.7605]
+2026-07-23 12:40:14,814 [trainer.py] maF1 curve:   [0.7189]
+2026-07-23 12:40:14,814 [trainer.py] miF1 curve:   [0.7373]
+2026-07-23 12:40:14,817 [finetune.py] Task 1 — learning classes 7-14: ['curiosity', 'desire', 'disappointment', 'disapproval', 'disgust', 'embarrassment', 'excitement']
+2026-07-23 12:40:14,819 [data_manager.py] task 1 train: 7800 samples, 7 label columns
+2026-07-23 12:40:14,820 [data_manager.py] task 1 test: 2662 samples, 14 label columns
+2026-07-23 12:40:14,824 [finetune.py] Task 1 — 4 epochs x 487 steps = 1948 steps (warmup 194)
+2026-07-23 12:40:53,372 [finetune.py] Task 1 epoch 1/4 — loss 0.8982 (38.5s)
+2026-07-23 12:41:32,260 [finetune.py] Task 1 epoch 2/4 — loss 0.7187 (38.9s)
+2026-07-23 12:42:10,661 [finetune.py] Task 1 epoch 3/4 — loss 0.6115 (38.4s)
+2026-07-23 12:42:48,866 [finetune.py] Task 1 epoch 4/4 — loss 0.5445 (38.2s)
+2026-07-23 12:42:55,229 [trainer.py] == Task 2/4 done in 160.4s — mAP 0.5505 | maF1 0.5264 | miF1 0.5616
+2026-07-23 12:42:55,229 [trainer.py] mAP curve:    [0.7605, 0.5505]
+2026-07-23 12:42:55,229 [trainer.py] maF1 curve:   [0.7189, 0.5264]
+2026-07-23 12:42:55,229 [trainer.py] miF1 curve:   [0.7373, 0.5616]
+2026-07-23 12:42:55,231 [finetune.py] Task 2 — learning classes 14-21: ['fear', 'gratitude', 'grief', 'joy', 'love', 'nervousness', 'optimism']
+2026-07-23 12:42:55,233 [data_manager.py] task 2 train: 8232 samples, 7 label columns
+2026-07-23 12:42:55,234 [data_manager.py] task 2 test: 3451 samples, 21 label columns
+2026-07-23 12:42:55,238 [finetune.py] Task 2 — 4 epochs x 514 steps = 2056 steps (warmup 205)
+2026-07-23 12:43:35,530 [finetune.py] Task 2 epoch 1/4 — loss 0.9078 (40.3s)
+2026-07-23 12:44:16,334 [finetune.py] Task 2 epoch 2/4 — loss 0.7741 (40.8s)
+2026-07-23 12:44:57,145 [finetune.py] Task 2 epoch 3/4 — loss 0.7097 (40.8s)
+2026-07-23 12:45:37,909 [finetune.py] Task 2 epoch 4/4 — loss 0.6759 (40.8s)
+2026-07-23 12:45:44,879 [trainer.py] == Task 3/4 done in 169.6s — mAP 0.4904 | maF1 0.4481 | miF1 0.4847
+2026-07-23 12:45:44,880 [trainer.py] mAP curve:    [0.7605, 0.5505, 0.4904]
+2026-07-23 12:45:44,880 [trainer.py] maF1 curve:   [0.7189, 0.5264, 0.4481]
+2026-07-23 12:45:44,880 [trainer.py] miF1 curve:   [0.7373, 0.5616, 0.4847]
+2026-07-23 12:45:44,882 [finetune.py] Task 3 — learning classes 21-28: ['pride', 'realization', 'relief', 'remorse', 'sadness', 'surprise', 'neutral']
+2026-07-23 12:45:44,885 [data_manager.py] task 3 train: 18222 samples, 7 label columns
+2026-07-23 12:45:44,886 [data_manager.py] task 3 test: 5427 samples, 28 label columns
+2026-07-23 12:45:44,889 [finetune.py] Task 3 — 4 epochs x 1138 steps = 4552 steps (warmup 455)
+2026-07-23 12:47:08,879 [finetune.py] Task 3 epoch 1/4 — loss 0.8437 (84.0s)
+2026-07-23 12:48:32,480 [finetune.py] Task 3 epoch 2/4 — loss 0.7679 (83.6s)
+2026-07-23 12:49:56,662 [finetune.py] Task 3 epoch 3/4 — loss 0.7164 (84.2s)
+2026-07-23 12:51:20,807 [finetune.py] Task 3 epoch 4/4 — loss 0.6854 (84.1s)
+2026-07-23 12:51:29,058 [trainer.py] == Task 4/4 done in 344.2s — mAP 0.3816 | maF1 0.3681 | miF1 0.4150
+2026-07-23 12:51:29,058 [trainer.py] mAP curve:    [0.7605, 0.5505, 0.4904, 0.3816]
+2026-07-23 12:51:29,058 [trainer.py] maF1 curve:   [0.7189, 0.5264, 0.4481, 0.3681]
+2026-07-23 12:51:29,058 [trainer.py] miF1 curve:   [0.7373, 0.5616, 0.4847, 0.415]
+2026-07-23 12:51:29,063 [trainer.py] FINAL — Avg mAP 0.5457 | Avg maF1 0.5154 | Avg miF1 0.5496
+2026-07-23 12:51:29,063 [trainer.py] FINAL — Last mAP 0.3816 | Last maF1 0.3681 | Last miF1 0.4150
+2026-07-23 12:51:29,063 [trainer.py] Results written to ./results\lwf\B0-I7\seed1993
