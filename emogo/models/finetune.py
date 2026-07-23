@@ -38,10 +38,13 @@ class Finetune(BaseLearner):
             self._cur_task
         )
         self._network.update_fc(self._total_classes)
+        # Report the concrete subclass, not this file: LwF and the other
+        # methods inherit this loop, so `%(filename)s` in the log format would
+        # otherwise always say finetune.py.
         logger.info(
-            "Task %d — learning classes %d-%d: %s",
-            self._cur_task, self._known_classes, self._total_classes,
-            data_manager.task_emotions(self._cur_task),
+            "[%s] Task %d — learning classes %d-%d: %s",
+            type(self).__name__, self._cur_task, self._known_classes,
+            self._total_classes, data_manager.task_emotions(self._cur_task),
         )
 
         train_dataset = data_manager.get_dataset(self._cur_task, source="train",
@@ -84,8 +87,9 @@ class Finetune(BaseLearner):
             "cuda", enabled=self.cfg.fp16 and self._device.type == "cuda"
         )
         logger.info(
-            "Task %d — %d epochs x %d steps = %d steps (warmup %d)",
-            self._cur_task, n_epochs, steps_per_epoch, num_train_steps, warmup,
+            "[%s] Task %d — %d epochs x %d steps = %d steps (warmup %d)",
+            type(self).__name__, self._cur_task, n_epochs, steps_per_epoch,
+            num_train_steps, warmup,
         )
 
         for epoch in range(n_epochs):
@@ -107,8 +111,8 @@ class Finetune(BaseLearner):
                 seen += 1
 
             logger.info(
-                "Task %d epoch %d/%d — loss %.4f (%.1fs)",
-                self._cur_task, epoch + 1, n_epochs,
+                "[%s] Task %d epoch %d/%d — loss %.4f (%.1fs)",
+                type(self).__name__, self._cur_task, epoch + 1, n_epochs,
                 total_loss / max(1, seen), time.time() - t0,
             )
 

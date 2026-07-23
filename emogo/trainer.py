@@ -40,9 +40,12 @@ def setup_logging(run_dir: str):
     root = logging.getLogger()
     for handler in list(root.handlers):
         root.removeHandler(handler)
+    # Deliberately not %(filename)s: methods inherit their training loop from
+    # models/finetune.py, so the filename would name the wrong method. The
+    # learner prints its own class name instead.
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(filename)s] %(message)s",
+        format="%(asctime)s %(message)s",
         handlers=[
             logging.FileHandler(os.path.join(run_dir, "run.log")),
             logging.StreamHandler(),
@@ -76,6 +79,10 @@ def train(cfg: Config):
             )
 
     model = get_model(cfg.method, cfg)
+    logger.info(
+        "Method: %s -> %s.%s",
+        cfg.method, type(model).__module__, type(model).__name__,
+    )
 
     curves = {"map": []}
     curves.update({name: [] for name in METRIC_NAMES})
