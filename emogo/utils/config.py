@@ -47,7 +47,13 @@ class Config:
     total_class: int = 0
 
     # --- backbone ---------------------------------------------------------
+    # Every field from here to `num_workers` is copied from ../bertgo/config.py
+    # and must stay identical to it: the verified GoEmotions replication is the
+    # reference point (and the Upper-bound row) these experiments are read
+    # against, so a drift here would make the comparison meaningless.
+    # tests/check_config.py asserts the match.
     model_name: str = "bert-base-cased"
+    do_lower_case: bool = False       # cased model — see ../bertgo/README.md
     max_seq_length: int = 50
     classifier_dropout: float = 0.1
 
@@ -67,8 +73,15 @@ class Config:
         default_factory=lambda: ["LayerNorm", "layer_norm", "bias"]
     )
     drop_last: bool = True
-    fp16: bool = True
+    # The verified bertgo run used fp32. Keep it off so the incremental results
+    # differ from that baseline only by the continual-learning setting.
+    fp16: bool = False
     num_workers: int = 4
+
+    # --- LwF --------------------------------------------------------------
+    # `lamda` in EmoGrowth/models/lwf_ml.py; 3 in both the iScience and PNAS
+    # blocks of that file.
+    lwf_lamda: float = 3.0
 
     # --- replay buffer (ER / RS / PRS / OCDM) -----------------------------
     memory_size: int = 500

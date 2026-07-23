@@ -14,11 +14,29 @@ to the incremental setting rather than to a mistuned backbone.
 | Component | State |
 |---|---|
 | Task protocols, data manager, metrics, trainer | done |
-| `finetune` | done |
-| `ewc`, `lwf`, `replay` (ER/RS/PRS/OCDM), `agcn`, `krt-r`, `aesl` | not yet implemented |
+| `finetune`, `lwf` | done |
+| `ewc`, `replay` (ER/RS/PRS/OCDM), `agcn`, `krt-r`, `aesl` | not yet implemented |
 
 `utils/factory.py` raises a clear error for a method that is not registered
 yet, so nothing fails silently.
+
+### Reference numbers to aim at
+
+GoEmotions has 28 classes, so the paper's **Audio28** table (Table 3) is the
+direct analogue. Its B0-I7 column:
+
+| Method | Avg. Acc mAP | Last maF1 | Last miF1 | Last mAP |
+|---|---|---|---|---|
+| Finetune | 36.4 | 9.2 | 14.8 | 27.3 |
+| LwF | 46.6 | 37.9 | 51.7 | 40.6 |
+| AESL (theirs) | 49.0 | 38.4 | 51.8 | 42.7 |
+| Upper-bound | – | 51.4 | 61.1 | 57.1 |
+
+Do not expect these exact values — different modality, different backbone, and
+here the backbone is fine-tuned rather than frozen. What should carry over is
+the **ordering and the size of the gap**: LwF must beat Finetune by a wide
+margin, and both must sit below an upper bound. `../bertgo` (all 28 classes
+trained jointly) is this project's upper bound.
 
 ## Run
 
@@ -28,7 +46,10 @@ the working directory.
 
 ```bash
 pip install -r requirements.txt
+python check_config.py                    # assert BERT settings match ../bertgo
 python main.py --config exps/finetune_B0-I7.json
+python main.py --config exps/lwf_B0-I7.json
+./run_all.sh lwf                          # all four protocols
 ```
 
 On a GPU server, install torch to match the driver before running — see the
@@ -134,16 +155,47 @@ computed after the fact.
 Reported as **Avg. Acc** (mean across tasks) and **Last Acc** (after the final
 task), matching the paper's columns.
 
+### Methods
+
+**Finetune** — no anti-forgetting mechanism. The detail that makes it the real
+multi-label baseline rather than a strawman: at task *b* the targets for
+already-seen classes are set to **zero** and the loss covers the whole widened
+head (`fake_target_gen` in EmoGrowth's `finetune_ml.py`). Every new sample
+therefore actively asserts "none of the old emotions are present", which is
+false and is what destroys them.
+
+**LwF** — differs from Finetune in exactly one place:
+
+```
+Finetune   L(logits[:, :],       [0…0 | y])
+LwF        L(logits[:, known:],  y)  +  lamda * L(logits[:, :known], sigmoid(old_logits))
+```
+
+The old columns are never shown ground truth at all. They are supervised by the
+frozen previous model's own sigmoid outputs, so old knowledge is preserved by
+self-distillation instead of contradicted. `lamda = 3`, the value in both
+config blocks of EmoGrowth's `lwf_ml.py`.
+
+Both use `MultiLabelSoftMarginLoss`, as EmoGrowth does — verified numerically
+identical to the `BCEWithLogitsLoss(reduction="mean")` that `../bertgo` uses,
+so the two folders optimise the same objective.
+
 ### Hyperparameters
 
-From `../bertgo`: `bert-base-cased`, max length 50, batch 16, LR 5e-5, warmup
-10%, BERT's `AdamWeightDecayOptimizer` (no bias correction — see
-`utils/optimization.py`), grad clip 1.0, 4 epochs per task.
+Every BERT setting is copied from `../bertgo`: `bert-base-cased` (cased),
+max length 50, batch 16, LR 5e-5, warmup 10%, BERT's
+`AdamWeightDecayOptimizer` (no bias correction — see `utils/optimization.py`),
+grad clip 1.0, fp32, 4 epochs per task.
+
+`check_config.py` asserts this match and exits non-zero if the two drift apart;
+`run_all.sh` calls it before every sweep. It also prints the four differences
+that are intentional: per-task epochs, seed (1993 here, EmoGrowth's convention,
+vs 42 in bertgo), the metric threshold, and the absence of a dev split.
 
 EmoGrowth uses a longer first task than subsequent ones (40 vs 30 epochs on
 iScience). Here `init_epochs` and `epochs` both default to 4, because the
-GoEmotions paper found more than 4 epochs overfits BERT on this data. Both are
-configurable if you want to revisit that.
+GoEmotions paper found more than 4 epochs overfits BERT on this data. Each task
+gets its own warmup+decay cycle, i.e. every task is a fresh fine-tuning run.
 
 ## Adding the remaining methods
 

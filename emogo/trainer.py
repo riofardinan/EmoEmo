@@ -60,7 +60,9 @@ def train(cfg: Config):
     logger.info("Run: %s", cfg.run_name)
     logger.info("Config: %s", json.dumps(cfg.to_dict(), indent=2))
 
-    tokenizer = BertTokenizerFast.from_pretrained(cfg.model_name)
+    tokenizer = BertTokenizerFast.from_pretrained(
+        cfg.model_name, do_lower_case=cfg.do_lower_case
+    )
     data_manager = GoEmotionsDataManager(cfg, tokenizer)
 
     if cfg.method.lower() in _NEEDS_AFFECTIVE:

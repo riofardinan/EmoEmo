@@ -7,9 +7,11 @@ plug in the same way — each subclasses Finetune and overrides `_compute_loss`,
 """
 
 from models.finetune import Finetune
+from models.lwf import LwF
 
 _REGISTRY = {
     "finetune": Finetune,
+    "lwf": LwF,
 }
 
 

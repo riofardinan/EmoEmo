@@ -115,14 +115,12 @@ class Finetune(BaseLearner):
     # ------------------------------------------------------------------ losses
 
     def _step(self, batch) -> torch.Tensor:
-        input_ids, attention_mask, token_type_ids = (
-            t.to(self._device) for t in batch[:3]
-        )
-        targets = batch[3].to(self._device)
-        out = self._network(input_ids, attention_mask, token_type_ids)
-        return self._compute_loss(out, targets, batch)
+        inputs = tuple(t.to(self._device, non_blocking=True) for t in batch[:3])
+        targets = batch[3].to(self._device, non_blocking=True)
+        out = self._network(*inputs)
+        return self._compute_loss(out, targets, inputs, batch)
 
-    def _compute_loss(self, out, targets, batch) -> torch.Tensor:
+    def _compute_loss(self, out, targets, inputs, batch) -> torch.Tensor:
         logits = out["logits"]
         if self._cur_task == 0:
             return self.criterion(logits, targets)

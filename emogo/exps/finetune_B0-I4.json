@@ -5,20 +5,17 @@
     "seed": 1993,
     "drop_neutral": false,
     "class_order": "file",
-
     "model_name": "bert-base-cased",
     "max_seq_length": 50,
     "classifier_dropout": 0.1,
-
     "batch_size": 16,
     "eval_batch_size": 64,
     "learning_rate": 5e-05,
     "init_epochs": 4,
     "epochs": 4,
     "warmup_proportion": 0.1,
-    "fp16": true,
+    "fp16": false,
     "num_workers": 4,
-
     "output_dir": "./results",
     "device": "cuda"
 }
