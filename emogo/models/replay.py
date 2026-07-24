@@ -39,17 +39,17 @@ logger = logging.getLogger(__name__)
 class Replay(Finetune):
     # Method name -> buffer type, so `--method er` can never disagree with a
     # stale `buffer_type` left in the config file.
-    _BY_METHOD = {"er": "random", "rs": "rs", "prs": "prs"}
+    _BY_METHOD = {"er": "random", "rs": "rs", "prs": "prs", "ocdm": "ocdm"}
 
     def __init__(self, cfg):
         super().__init__(cfg)
         self.buffer_type = self._BY_METHOD.get(
             cfg.method.lower(), cfg.buffer_type.lower()
         )
-        if self.buffer_type not in ("random", "rs", "prs"):
+        if self.buffer_type not in ("random", "rs", "prs", "ocdm"):
             raise NotImplementedError(
-                f"buffer_type '{self.buffer_type}' is not implemented yet. "
-                f"Available: random (ER), rs (RS), prs (PRS). OCDM is not built."
+                f"buffer_type '{self.buffer_type}' is not implemented. "
+                f"Available: random (ER), rs (RS), prs (PRS), ocdm (OCDM)."
             )
         self._data_memory: List[int] = []
         self._targets_memory_ml: List[List[int]] = []
@@ -102,6 +102,8 @@ class Replay(Finetune):
             self._fill_reservoir(indices, targets)
         elif self.buffer_type == "prs":
             self._fill_prs(indices, targets)
+        elif self.buffer_type == "ocdm":
+            self._fill_ocdm(indices, targets)
 
         logger.info("[Replay/%s] buffer size: %d", self.buffer_type,
                     len(self._data_memory))
@@ -223,6 +225,81 @@ class Replay(Finetune):
 
         logger.info("[Replay/prs] stream=%d, buffer=%d, replaced=%d this task",
                     self.total_sample, len(self._data_memory), replaced)
+
+    def _fill_ocdm(self, indices, targets):
+        """OCDM: pick the buffer whose label distribution is closest to uniform.
+
+        Follows `_construct_exemplar_unified_ml_ocdm` in EmoGrowth's base.py.
+        Two things about that implementation are worth knowing:
+
+        * It is **not** the greedy algorithm of Liang & Li (2022). The authors
+          commented the greedy version out and replaced it with a random search
+          over 10,000 candidate subsets, keeping the one whose class
+          distribution has the lowest KL divergence from uniform. Since Table 3
+          was produced by the random-search version, that is what is
+          reproduced here.
+        * The target distribution is uniform over all classes seen so far,
+          which is what makes OCDM a *balancing* method like PRS.
+
+        The search is vectorised over the multi-hot matrix; the original loops
+        in Python, which would be far too slow at GoEmotions' scale.
+        """
+        import numpy as np
+
+        m = self.cfg.memory_size
+        n_trials = self.cfg.ocdm_trials
+        n_seen = self._total_classes
+
+        # Candidate pool = current buffer + this task's rows.
+        pool_idx = list(self._data_memory)
+        pool_lab = list(self._targets_memory_ml)
+
+        # Top the buffer up first, exactly as the original does.
+        rows = list(range(len(indices)))
+        if len(pool_idx) < m:
+            take = min(len(rows), m - len(pool_idx))
+            chosen = random.sample(rows, take)
+            for row in chosen:
+                pool_idx.append(indices[row])
+                pool_lab.append(self._global_labels(targets[row]))
+            rows = [r for r in rows if r not in set(chosen)]
+
+        for row in rows:
+            pool_idx.append(indices[row])
+            pool_lab.append(self._global_labels(targets[row]))
+
+        if len(pool_idx) <= m:
+            self._data_memory = pool_idx
+            self._targets_memory_ml = pool_lab
+            logger.info("[Replay/ocdm] pool %d <= memory %d, kept all",
+                        len(pool_idx), m)
+            return
+
+        multi_hot = np.zeros((len(pool_idx), n_seen), dtype=np.float64)
+        for i, labels in enumerate(pool_lab):
+            if labels:
+                multi_hot[i, labels] = 1.0
+
+        p_target = np.ones(n_seen) / n_seen
+        rng = np.random.default_rng(self.cfg.seed + self._cur_task)
+
+        best_kl, best = np.inf, None
+        for _ in range(n_trials):
+            cand = rng.choice(len(pool_idx), size=m, replace=False)
+            counts = multi_hot[cand].sum(axis=0)
+            total = counts.sum()
+            if total == 0:
+                continue
+            p = counts / total
+            # KL(p || uniform), skipping zero entries as the original does.
+            kl = np.sum(np.where(p != 0, p * np.log(p / p_target), 0.0))
+            if kl < best_kl:
+                best_kl, best = kl, cand
+
+        self._data_memory = [pool_idx[i] for i in best]
+        self._targets_memory_ml = [pool_lab[i] for i in best]
+        logger.info("[Replay/ocdm] pool %d -> %d, KL to uniform %.4f "
+                    "(%d trials)", len(pool_idx), m, best_kl, n_trials)
 
     def _global_labels(self, row: torch.Tensor) -> List[int]:
         """Task-local one-hot row -> global class indices."""

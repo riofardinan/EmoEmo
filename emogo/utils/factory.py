@@ -6,6 +6,7 @@ plug in the same way — each subclasses Finetune and overrides `_compute_loss`,
 `_train_dataset_kwargs`, or `build_rehearsal_memory`.
 """
 
+from models.aesl import AESL
 from models.ewc import EWC
 from models.finetune import Finetune
 from models.lwf import LwF
@@ -13,12 +14,14 @@ from models.replay import Replay
 
 _REGISTRY = {
     "finetune": Finetune,
+    "aesl": AESL,
     "ewc": EWC,
     "lwf": LwF,
     # Both are models/replay.py; the method name picks the buffer strategy.
     "er": Replay,
     "rs": Replay,
     "prs": Replay,
+    "ocdm": Replay,
     "replay": Replay,   # honours cfg.buffer_type instead
 }
 

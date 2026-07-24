@@ -14,11 +14,24 @@ to the incremental setting rather than to a mistuned backbone.
 | Component | State |
 |---|---|
 | Task protocols, data manager, metrics, trainer | done |
-| `finetune`, `ewc`, `lwf`, `er`, `rs` | done |
-| `prs`, `ocdm`, `agcn`, `krt-r`, `aesl` | not yet implemented |
+| `finetune`, `ewc`, `lwf`, `er`, `rs`, `ocdm`, `aesl` | done |
+| `agcn`, `prs` | contributed, **not reviewed clean** — see below |
+| `krt-r` | not implemented: no reference code exists |
 
 `utils/factory.py` raises a clear error for a method that is not registered
 yet, so nothing fails silently.
+
+**KRT-R is deliberately absent.** EmoGrowth's repo reproduces eight methods and
+KRT-R is not among them — it appears in the paper's tables only as a cited
+comparison (Dong et al., 2023). Implementing it would mean working from that
+paper with no reference implementation, and with no way to verify it the way
+every other method here was verified (loss functions diffed against the
+original to 0.0). Report it as not replicated.
+
+**AGCN and PRS were contributed separately and have open issues** — the graph
+construction differs from `base.py` (diagonal not zeroed, matrix not symmetric)
+and PRS's `exp(-N)` underflows to zero at GoEmotions' class counts, which
+freezes its buffer. They are excluded from `run_all.sh` until fixed.
 
 ### Comparing against ../bertgo
 
@@ -72,6 +85,7 @@ direct analogue. Its B0-I7 column:
 | LwF | 46.6 | 37.9 | 51.7 | 40.6 |
 | ER | 44.7 | 8.1 | 14.4 | 38.0 |
 | RS | 43.7 | 8.1 | 12.3 | 36.5 |
+| OCDM | 44.5 | 8.7 | 12.0 | 38.4 |
 | AESL (theirs) | 49.0 | 38.4 | 51.8 | 42.7 |
 | Upper-bound | – | 51.4 | 61.1 | 57.1 |
 
@@ -104,9 +118,18 @@ python main.py --config exps/lwf_B0-I7.json     # one run
 ./run_all.sh "finetune lwf" 1994          # subset, different seed
 ```
 
-`exps/` holds one config per (method, protocol): 3 × 4 = 12. `run_all.sh`
-checks the config against `../bertgo` first, then prints the comparison tables
+`exps/` holds one config per (method, protocol). `run_all.sh` checks each
+config against the frozen reference first, then prints the comparison tables
 when the sweep finishes.
+
+**AESL needs its affective vectors built once first:**
+
+```bash
+python precompute_vad.py --source lexicon    # NRC-VAD, seconds
+python precompute_vad.py --source emobank    # BERT regressor, ~5 min on a GPU
+./run_all.sh aesl            # lexicon arm
+./run_all.sh aesl-emobank    # EmoBank arm
+```
 
 On a GPU server, install torch to match the driver before running — see the
 note in `../bertgo/README.md`. The default PyPI wheel targets CUDA 13 and falls
@@ -318,6 +341,47 @@ training."*
 The buffer stores row indices plus each sample's global class indices, so the
 text is never copied. Buffer construction is skipped after the final task,
 matching the original.
+
+**OCDM** — a buffer method again, but one that solves for balance directly:
+after each task it searches for the subset of `memory_size` samples whose class
+distribution has the lowest KL divergence from uniform. Note the repo's version
+is **not** the greedy algorithm of Liang & Li (2022) — EmoGrowth's authors
+commented that out and replaced it with a 10,000-trial random search, and since
+Table 3 came from the random-search version, that is what is reproduced.
+Vectorised here, because the original's Python loop is unusable at GoEmotions'
+scale.
+
+**AESL** — the paper's own method. Four loss terms (Eq. 15): classification,
+emotional-semantics learning over the augmented ERG, logit distillation from
+the old model, and relation-based KD against two teachers — the old model's
+features and an affective-space representation.
+
+Three things about AESL in the text setting deserve to be stated plainly in a
+write-up:
+
+* **The affective teacher is a proxy.** Video27/Brain27 supply 14 human-rated
+  appraisal dimensions per stimulus and Audio28 supplies 11; GoEmotions
+  supplies none. `precompute_vad.py` builds a 3-dimensional substitute two
+  ways, and both are worth running — `--source lexicon` (mean NRC-VAD over
+  matched tokens) and `--source emobank` (a BERT regressor trained on EmoBank's
+  10k human-rated sentences). Three dimensions give a coarser similarity matrix
+  than eleven: on random data the off-diagonal cosine std is 0.58 at 3 dims
+  against 0.30 at 11. Neither source touches the gold labels, which matters —
+  a label-derived affective signal would leak future classes.
+* **RKD is defined over batch statistics, and our batch is 16, not 128.** That
+  is 240 off-diagonal RSM entries per step instead of 16,256. AESL is the only
+  method here affected: every other loss is per-sample. Batch 16 comes from the
+  GoEmotions replication and is kept so the comparison across methods stays
+  fair.
+* **`atanh` diverges on identical features.** 0.7% of GoEmotions training rows
+  are exact duplicates ("Thank you.", "[NAME]"), which produce cosine exactly 1
+  off the diagonal. The original's guard — zeroing non-finite entries — is kept
+  and tested.
+
+The ERG itself (`utils/graph.py`) was verified against `base.py` to 0.0 and
+6e-8. Two details a re-implementation loses easily: the diagonal is zeroed
+before symmetrising, and the matrix is symmetrised **last**, so no row
+normalisation can break symmetry.
 
 All methods use `MultiLabelSoftMarginLoss`, as EmoGrowth does — verified
 numerically identical to the `BCEWithLogitsLoss(reduction="mean")` that

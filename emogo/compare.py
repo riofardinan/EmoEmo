@@ -65,6 +65,7 @@ PAPER_AUDIO28 = {
         "lwf": (46.6, 37.9, 51.7, 40.6),
         "er": (44.7, 8.1, 14.4, 38.0),
         "rs": (43.7, 8.1, 12.3, 36.5),
+        "ocdm": (44.5, 8.7, 12.0, 38.4),
         "aesl": (49.0, 38.4, 51.8, 42.7),
     },
     "B0-I4": {
@@ -74,6 +75,7 @@ PAPER_AUDIO28 = {
         "lwf": (45.8, 49.8, 37.6, 45.0),
         "er": (44.6, 6.5, 5.5, 35.2),
         "rs": (43.6, 5.9, 9.3, 32.0),
+        "ocdm": (44.5, 7.5, 8.8, 31.5),
         "aesl": (48.7, 41.1, 51.7, 39.8),
     },
     "B16-I3": {
@@ -83,6 +85,7 @@ PAPER_AUDIO28 = {
         "lwf": (45.0, 32.3, 45.2, 40.0),
         "er": (41.3, 9.2, 13.3, 36.8),
         "rs": (38.7, 7.5, 11.7, 32.9),
+        "ocdm": (38.2, 5.5, 9.7, 30.1),
         "aesl": (47.8, 32.3, 48.0, 42.3),
     },
     "B16-I2": {
@@ -92,6 +95,7 @@ PAPER_AUDIO28 = {
         "lwf": (44.3, 28.8, 41.4, 36.5),
         "er": (39.4, 10.1, 13.6, 34.1),
         "rs": (38.2, 5.8, 11.6, 31.8),
+        "ocdm": (36.3, 3.7, 7.9, 30.2),
         "aesl": (45.3, 30.8, 45.1, 39.3),
     },
 }
@@ -257,8 +261,8 @@ def main():
     ap.add_argument("--protocol", default="B0-I7")
     ap.add_argument("--seed", type=int, default=1993)
     ap.add_argument("--methods", nargs="*",
-                    default=["finetune", "ewc", "lwf", "er", "rs",
-                             "agcn", "prs", "ocdm", "krt-r", "aesl"])
+                    default=["finetune", "ewc", "lwf", "er", "rs", "ocdm",
+                             "agcn", "prs", "aesl", "aesl-emobank"])
     ap.add_argument("--per-emotion", action="store_true",
                     help="Also print the GoEmotions Table 4 style breakdown, "
                          "which utils/metrics.py does not produce.")

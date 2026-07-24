@@ -25,6 +25,9 @@ _PKG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Config:
     # --- experiment identity ---------------------------------------------
     prefix: str = "emogo"
+    # Optional suffix on the results directory, so variants of one method (e.g.
+    # AESL under two affective sources) do not overwrite each other.
+    tag: str = ""
     method: str = "finetune"          # which continual learning algorithm
     protocol: str = "B0-I7"           # see utils/protocols.py
     seed: int = 1993                  # EmoGrowth/PyCIL default
@@ -97,6 +100,9 @@ class Config:
     fixed_memory: bool = True
     buffer_type: str = "prs"          # random | rs | prs | ocdm
     prs_rho: float = 0.5
+    # OCDM: number of random candidate subsets searched per task. 10000 in
+    # EmoGrowth's base.py.
+    ocdm_trials: int = 10000
 
     # --- AESL / CLIF ------------------------------------------------------
     feature_dim: int = 64
@@ -111,6 +117,11 @@ class Config:
     # Audio28. We derive them from the text with the NRC-VAD lexicon, which
     # keeps the signal independent of the emotion labels — important, since a
     # label-derived signal would leak future classes.
+    # Which precomputed source to use. Build both with precompute_vad.py and
+    # run AESL under each to show how much the proxy's quality matters:
+    #   "lexicon" — mean NRC-VAD over matched tokens
+    #   "emobank" — BERT regressor trained on EmoBank sentence-level ratings
+    vad_source: str = "lexicon"
     vad_lexicon_path: str = field(
         default_factory=lambda: os.path.join(_PKG, "data",
                                              "NRC-VAD-Lexicon-v2.1.txt")
@@ -135,12 +146,17 @@ class Config:
             self.device = torch.device(requested)
 
     @property
+    def method_dir(self) -> str:
+        """Method name plus tag; the key results/ and compare.py index by."""
+        return f"{self.method}-{self.tag}" if self.tag else self.method
+
+    @property
     def run_name(self) -> str:
-        return f"{self.prefix}_{self.method}_{self.protocol}_seed{self.seed}"
+        return f"{self.prefix}_{self.method_dir}_{self.protocol}_seed{self.seed}"
 
     @property
     def run_dir(self) -> str:
-        return os.path.join(self.output_dir, self.method, self.protocol,
+        return os.path.join(self.output_dir, self.method_dir, self.protocol,
                             f"seed{self.seed}")
 
     def to_dict(self) -> Dict[str, Any]:
@@ -158,10 +174,12 @@ METHOD_ONLY_FIELDS: Dict[str, set] = {
     "er": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "rs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "prs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type", "prs_rho"},
+    "ocdm": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type",
+             "ocdm_trials"},
     "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
              "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",
-             "vad_lexicon_path", "use_vad_dims"},
+             "vad_source", "vad_lexicon_path", "use_vad_dims"},
 }
 METHOD_ONLY_FIELDS["clif"] = METHOD_ONLY_FIELDS["aesl"]
 

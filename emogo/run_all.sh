@@ -1,11 +1,11 @@
 #!/bin/bash
 # Run methods across the four 28-class protocols.
-#   ./run_all.sh                    -> finetune, ewc, lwf, er, rs (20 runs)
+#   ./run_all.sh                    -> finetune ewc lwf er rs ocdm aesl (28 runs)
 #   ./run_all.sh lwf                -> lwf only, 4 runs
 #   ./run_all.sh "finetune lwf" 1994
 set -e
 
-METHODS=${1:-"finetune ewc lwf er rs"}
+METHODS=${1:-"finetune ewc lwf er rs ocdm aesl"}
 SEED=${2:-1993}
 PROTOCOLS="B0-I7 B0-I4 B16-I3 B16-I2"
 

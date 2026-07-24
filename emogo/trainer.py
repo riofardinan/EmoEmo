@@ -28,6 +28,46 @@ logger = logging.getLogger(__name__)
 _NEEDS_AFFECTIVE = {"aesl", "clif"}
 
 
+def attach_affective(cfg, data_manager):
+    """Load the precomputed VAD vectors AESL's second teacher needs.
+
+    Built by precompute_vad.py, which is where the two ablation arms
+    (`lexicon` / `emobank`) are defined. Falls back to computing the lexicon
+    variant on the fly so a run never fails just because the cache is missing.
+    """
+    for split in ("train", "test"):
+        cache = os.path.join(cfg.data_dir,
+                             f"vad_{cfg.vad_source}_{split}.npy")
+        if os.path.isfile(cache):
+            vectors = np.load(cache)
+            logger.info("Affective (%s) %s loaded from %s",
+                        cfg.vad_source, vectors.shape, os.path.basename(cache))
+        elif cfg.vad_source == "lexicon":
+            logger.warning(
+                "%s not found — computing the lexicon vectors now. Run "
+                "`python precompute_vad.py --source lexicon` to cache them.",
+                cache,
+            )
+            lexicon = load_vad_lexicon(cfg.vad_lexicon_path)
+            vectors = build_affective_matrix(
+                data_manager._splits[split]["texts"], lexicon, cfg.use_vad_dims
+            )
+        else:
+            raise FileNotFoundError(
+                f"Affective vectors for source '{cfg.vad_source}' are missing "
+                f"({cache}). Build them first:\n"
+                f"    python precompute_vad.py --source {cfg.vad_source}"
+            )
+
+        n_expected = len(data_manager._splits[split]["texts"])
+        if len(vectors) != n_expected:
+            raise ValueError(
+                f"{cache} has {len(vectors)} rows but the {split} split has "
+                f"{n_expected}. Rebuild it."
+            )
+        data_manager.attach_affective(split, vectors)
+
+
 def set_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
@@ -71,14 +111,7 @@ def train(cfg: Config):
     data_manager = GoEmotionsDataManager(cfg, tokenizer)
 
     if cfg.method.lower() in _NEEDS_AFFECTIVE:
-        lexicon = load_vad_lexicon(cfg.vad_lexicon_path)
-        for split in ("train", "test"):
-            data_manager.attach_affective(
-                split,
-                build_affective_matrix(
-                    data_manager._splits[split]["texts"], lexicon, cfg.use_vad_dims
-                ),
-            )
+        attach_affective(cfg, data_manager)
 
     model = get_model(cfg.method, cfg)
     logger.info(
