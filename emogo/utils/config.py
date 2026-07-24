@@ -96,6 +96,7 @@ class Config:
     memory_per_class: int = 20
     fixed_memory: bool = True
     buffer_type: str = "prs"          # random | rs | prs | ocdm
+    prs_rho: float = 0.5
 
     # --- AESL / CLIF ------------------------------------------------------
     feature_dim: int = 64
@@ -156,6 +157,7 @@ METHOD_ONLY_FIELDS: Dict[str, set] = {
     "ewc": {"ewc_lamda", "ewc_fishermax"},
     "er": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "rs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
+    "prs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type", "prs_rho"},
     "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
              "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",
