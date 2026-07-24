@@ -1,8 +1,6 @@
 CL/
-EmoGrowth/
-google-research/
-bertgo.zip
-EmoGrowth.pdf
-GoEmotions.pdf
+*.pdf
 
 bertgo/output
+
+*.zip
