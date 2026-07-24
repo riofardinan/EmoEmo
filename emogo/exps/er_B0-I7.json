@@ -1,7 +1,7 @@
 {
     "prefix": "emogo",
-    "method": "lwf",
-    "protocol": "B0-I4",
+    "method": "er",
+    "protocol": "B0-I7",
     "seed": 1993,
     "drop_neutral": false,
     "class_order": "alphabetical",
@@ -19,5 +19,8 @@
     "num_workers": 4,
     "output_dir": "./results",
     "device": "cuda",
-    "lwf_lamda": 3.0
+    "buffer_type": "random",
+    "memory_size": 500,
+    "memory_per_class": 20,
+    "fixed_memory": true
 }

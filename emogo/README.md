@@ -14,8 +14,8 @@ to the incremental setting rather than to a mistuned backbone.
 | Component | State |
 |---|---|
 | Task protocols, data manager, metrics, trainer | done |
-| `finetune`, `lwf` | done |
-| `ewc`, `replay` (ER/RS/PRS/OCDM), `agcn`, `krt-r`, `aesl` | not yet implemented |
+| `finetune`, `ewc`, `lwf`, `er`, `rs` | done |
+| `prs`, `ocdm`, `agcn`, `krt-r`, `aesl` | not yet implemented |
 
 `utils/factory.py` raises a clear error for a method that is not registered
 yet, so nothing fails silently.
@@ -38,6 +38,10 @@ The relationship is that **bertgo is the Upper-bound row** of the EmoGrowth
 table — same backbone, same data, no incremental constraint. The comparison is
 valid because after the final task the incremental test set is exactly bertgo's
 test set: same 5,427 comments, same 28 columns.
+
+That row is the *only* thing `compare.py` needs from bertgo, and it is
+optional: pass `--upper-bound path/to/test_probs.npy`, or omit it and the row
+is left blank. Everything else comes from this folder's own `data/`.
 
 ```bash
 python compare.py                    # builds the table, bertgo as Upper-bound
@@ -64,9 +68,20 @@ direct analogue. Its B0-I7 column:
 | Method | Avg. Acc mAP | Last maF1 | Last miF1 | Last mAP |
 |---|---|---|---|---|
 | Finetune | 36.4 | 9.2 | 14.8 | 27.3 |
+| EWC | 37.9 | 8.3 | 14.3 | 29.3 |
 | LwF | 46.6 | 37.9 | 51.7 | 40.6 |
+| ER | 44.7 | 8.1 | 14.4 | 38.0 |
+| RS | 43.7 | 8.1 | 12.3 | 36.5 |
 | AESL (theirs) | 49.0 | 38.4 | 51.8 | 42.7 |
 | Upper-bound | – | 51.4 | 61.1 | 57.1 |
+
+Note the shape of the replay rows: ER and RS reach a respectable **mAP** (38.0,
+36.5 — second only to LwF) while their **maF1/miF1 stay down near Finetune's**.
+Ranking survives, thresholded prediction does not. If your runs reproduce that
+split, the implementation is behaving.
+
+`compare.py` carries these for all four protocols and prints them beside your
+own numbers.
 
 Do not expect these exact values — different modality, different backbone, and
 here the backbone is fine-tuned rather than frozen. What should carry over is
@@ -83,10 +98,15 @@ the working directory.
 ```bash
 pip install -r requirements.txt
 python check_config.py                    # assert BERT settings match ../bertgo
-python main.py --config exps/finetune_B0-I7.json
-python main.py --config exps/lwf_B0-I7.json
-./run_all.sh lwf                          # all four protocols
+python main.py --config exps/lwf_B0-I7.json     # one run
+./run_all.sh                              # finetune + ewc + lwf, 4 protocols each
+./run_all.sh lwf                          # one method, 4 protocols
+./run_all.sh "finetune lwf" 1994          # subset, different seed
 ```
+
+`exps/` holds one config per (method, protocol): 3 × 4 = 12. `run_all.sh`
+checks the config against `../bertgo` first, then prints the comparison tables
+when the sweep finishes.
 
 On a GPU server, install torch to match the driver before running — see the
 note in `../bertgo/README.md`. The default PyPI wheel targets CUDA 13 and falls
@@ -248,6 +268,23 @@ head (`fake_target_gen` in EmoGrowth's `finetune_ml.py`). Every new sample
 therefore actively asserts "none of the old emotions are present", which is
 false and is what destroys them.
 
+**EWC** — keeps the *parameters* near where they were, rather than the outputs.
+After each task it estimates the diagonal Fisher information and penalises
+movement in the weights that mattered:
+
+```
+loss = loss_clf + 1000 * Σ_n fisher[n] · (θ[n] − θ_old[n])² / 2
+```
+
+`loss_clf` is Finetune's, zeros and all — EWC does nothing about the
+past-missing partial labels, it only slows the drift. The paper's verdict
+(§4.2): *"EWC is not suitable for direct application to MLCIL task due to its
+poor performance."* Expect it near Finetune, not LwF. `lamda = 1000`,
+`fishermax = 1e-4`, both from `ewc_ml.py`.
+
+Costs ~880 MB of extra device memory when fine-tuning BERT, since `fisher` and
+`mean` each hold a full copy of the parameters.
+
 **LwF** — differs from Finetune in exactly one place:
 
 ```
@@ -260,9 +297,31 @@ frozen previous model's own sigmoid outputs, so old knowledge is preserved by
 self-distillation instead of contradicted. `lamda = 3`, the value in both
 config blocks of EmoGrowth's `lwf_ml.py`.
 
-Both use `MultiLabelSoftMarginLoss`, as EmoGrowth does — verified numerically
-identical to the `BCEWithLogitsLoss(reduction="mean")` that `../bertgo` uses,
-so the two folders optimise the same objective.
+**ER** and **RS** — replay. Both keep a buffer of past samples and mix it into
+every later task; they differ only in how it is filled:
+
+* `er` — per class of the current task, keep up to `memory_per_class` (20)
+  samples carrying it, chosen uniformly, then union.
+* `rs` — reservoir sampling over the stream of all training samples, capped at
+  `memory_size` (500). Every sample has the same survival probability, so
+  frequent emotions dominate the buffer. That imbalance is exactly what PRS and
+  OCDM were designed to fix.
+
+Replay attacks the past-missing problem from a different angle than LwF: the
+buffered rows carry their *real* labels for old classes, so the model sees
+genuine positive evidence instead of Finetune's zeros. What it does not fix is
+that the *current* task's rows still say zero for those classes — the paper's
+explanation (§4.2) for why replay disappoints on maF1/miF1: *"just saving the
+labels of current task aggravates the partial label problem in subsequent
+training."*
+
+The buffer stores row indices plus each sample's global class indices, so the
+text is never copied. Buffer construction is skipped after the final task,
+matching the original.
+
+All methods use `MultiLabelSoftMarginLoss`, as EmoGrowth does — verified
+numerically identical to the `BCEWithLogitsLoss(reduction="mean")` that
+`../bertgo` uses, so the two folders optimise the same objective.
 
 ### Hyperparameters
 
@@ -271,10 +330,18 @@ max length 50, batch 16, LR 5e-5, warmup 10%, BERT's
 `AdamWeightDecayOptimizer` (no bias correction — see `utils/optimization.py`),
 grad clip 1.0, fp32, 4 epochs per task.
 
-`check_config.py` asserts this match and exits non-zero if the two drift apart;
-`run_all.sh` calls it before every sweep. It also prints the four differences
-that are intentional: per-task epochs, seed (1993 here, EmoGrowth's convention,
-vs 42 in bertgo), the metric threshold, and the absence of a dev split.
+**The two folders share no code and no config.** `utils/reference.py` holds a
+frozen copy of the verified values as literals, with the provenance of each, so
+this folder runs standalone — on a server, in a container, with no `../bertgo`
+anywhere. `check_config.py` asserts the run matches that reference and exits
+non-zero otherwise; `run_all.sh` calls it before every sweep, so a drifted
+config stops the run instead of quietly producing incomparable numbers. It also
+prints the four differences that are intentional: per-task epochs, seed (1993
+here, EmoGrowth's convention, vs 42 in bertgo), the metric threshold, and the
+absence of a dev split.
+
+If a bertgo checkout is at hand, `check_config.py --against ../bertgo`
+additionally confirms the frozen snapshot has not fallen behind it.
 
 EmoGrowth uses a longer first task than subsequent ones (40 vs 30 epochs on
 iScience). Here `init_epochs` and `epochs` both default to 4, because the

@@ -223,9 +223,15 @@ class GoEmotionsDataManager:
         ]
 
         if appendent is not None:
-            app_idx, app_y = appendent
+            app_idx, app_labels = appendent
             app_idx = torch.as_tensor(app_idx, dtype=torch.long)
-            app_y = torch.as_tensor(app_y, dtype=torch.float32)
+            # Buffered targets arrive as lists of global class indices, the
+            # form EmoGrowth's `_targets_memory_ml` uses. Expand to multi-hot
+            # over every class seen so far.
+            n_seen = self.get_accumulate_tasksize(task)
+            app_y = torch.zeros(len(app_idx), n_seen, dtype=torch.float32)
+            for row, label_list in enumerate(app_labels):
+                app_y[row, list(label_list)] = 1.0
             # The current task's labels only cover C^task, so pad the known
             # classes with zeros before concatenating buffered samples whose
             # labels span every class seen so far.

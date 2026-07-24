@@ -1,6 +1,6 @@
 {
     "prefix": "emogo",
-    "method": "lwf",
+    "method": "rs",
     "protocol": "B0-I4",
     "seed": 1993,
     "drop_neutral": false,
@@ -19,5 +19,8 @@
     "num_workers": 4,
     "output_dir": "./results",
     "device": "cuda",
-    "lwf_lamda": 3.0
+    "buffer_type": "rs",
+    "memory_size": 500,
+    "memory_per_class": 20,
+    "fixed_memory": true
 }

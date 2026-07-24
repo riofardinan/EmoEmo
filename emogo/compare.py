@@ -3,7 +3,13 @@
     python compare.py                    # B0-I7
     python compare.py --protocol B0-I4
 
-Why this script exists: ../bertgo and this folder deliberately report different
+This folder is self-contained: labels and emotion names come from its own
+`data/`, not from a sibling directory. The one thing it cannot produce itself
+is the Upper-bound row — that needs predictions from a model trained on all 28
+classes jointly, i.e. a bertgo run. Point `--upper-bound` at its
+`test_probs.npy`; without it the row is simply left blank.
+
+Why this script exists: bertgo and this folder deliberately report different
 things, so their raw output files are not comparable side by side.
 
   ../bertgo/output/run1/test_table4.txt
@@ -39,7 +45,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.metrics import MacroF1, MicroF1, average_precision  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BERTGO = os.path.join(HERE, "..", "bertgo")
+# This folder's own data. It does not read ../bertgo's copy: the two ship
+# identical files, and depending on a sibling directory would stop emogo from
+# running standalone.
+DATA = os.path.join(HERE, "data")
+# The only thing that genuinely has to come from bertgo is its trained
+# predictions, for the Upper-bound row. Optional — override with
+# --upper-bound, and the table simply omits that row when it is missing.
+DEFAULT_UPPER_BOUND = os.path.join(HERE, "..", "bertgo", "output", "run1",
+                                   "test_probs.npy")
 
 # Paper Table 3, Audio28 — the 28-class analogue of GoEmotions.
 # method -> (Avg mAP, Last maF1, Last miF1, Last mAP)
@@ -47,50 +61,63 @@ PAPER_AUDIO28 = {
     "B0-I7": {
         "Upper-bound": (None, 51.4, 61.1, 57.1),
         "finetune": (36.4, 9.2, 14.8, 27.3),
+        "ewc": (37.9, 8.3, 14.3, 29.3),
         "lwf": (46.6, 37.9, 51.7, 40.6),
+        "er": (44.7, 8.1, 14.4, 38.0),
+        "rs": (43.7, 8.1, 12.3, 36.5),
         "aesl": (49.0, 38.4, 51.8, 42.7),
     },
     "B0-I4": {
         "Upper-bound": (None, 51.4, 61.1, 57.1),
         "finetune": (35.3, 5.3, 10.0, 23.3),
+        "ewc": (37.1, 5.4, 10.5, 26.6),
         "lwf": (45.8, 49.8, 37.6, 45.0),
+        "er": (44.6, 6.5, 5.5, 35.2),
+        "rs": (43.6, 5.9, 9.3, 32.0),
         "aesl": (48.7, 41.1, 51.7, 39.8),
     },
     "B16-I3": {
         "Upper-bound": (None, 51.4, 61.1, 57.1),
         "finetune": (29.9, 4.4, 10.3, 22.6),
+        "ewc": (32.2, 4.4, 9.7, 24.7),
         "lwf": (45.0, 32.3, 45.2, 40.0),
+        "er": (41.3, 9.2, 13.3, 36.8),
+        "rs": (38.7, 7.5, 11.7, 32.9),
         "aesl": (47.8, 32.3, 48.0, 42.3),
     },
     "B16-I2": {
         "Upper-bound": (None, 51.4, 61.1, 57.1),
         "finetune": (27.6, 2.8, 8.2, 20.2),
+        "ewc": (28.1, 2.8, 8.7, 22.5),
         "lwf": (44.3, 28.8, 41.4, 36.5),
+        "er": (39.4, 10.1, 13.6, 34.1),
+        "rs": (38.2, 5.8, 11.6, 31.8),
         "aesl": (45.3, 30.8, 45.1, 39.3),
     },
 }
 
 
 def load_test_labels() -> np.ndarray:
-    path = os.path.join(BERTGO, "data", "test.tsv")
-    y = None
+    path = os.path.join(DATA, "test.tsv")
     rows = list(csv.reader(open(path, encoding="utf-8"), delimiter="\t"))
-    y = np.zeros((len(rows), 28), dtype=np.float32)
+    y = np.zeros((len(rows), len(load_emotions())), dtype=np.float32)
     for i, r in enumerate(rows):
         for j in r[1].split(","):
             y[i, int(j)] = 1.0
     return y
 
 
-def upper_bound_row():
+def upper_bound_row(probs_path: str):
     """bertgo scored with this folder's metrics: the no-forgetting ceiling."""
-    probs_path = os.path.join(BERTGO, "output", "run1", "test_probs.npy")
-    if not os.path.isfile(probs_path):
+    if not probs_path or not os.path.isfile(probs_path):
         return None
     probs = np.load(probs_path)
     y = load_test_labels()
     if probs.shape != y.shape:
-        raise ValueError(f"bertgo probs {probs.shape} vs labels {y.shape}")
+        raise ValueError(
+            f"Upper-bound predictions are {probs.shape} but this folder's test "
+            f"set is {y.shape}. Is {probs_path} from a matching run?"
+        )
     _, m_ap = average_precision(torch.from_numpy(probs), torch.from_numpy(y))
     # bertgo saves probabilities, so the 0.5 cut here is the same operating
     # point as emogo's logit > 0.
@@ -125,8 +152,8 @@ def method_row(method: str, protocol: str, seed: int):
 
 
 def load_emotions():
-    """Canonical display order: the emotions.txt order, which bertgo uses."""
-    path = os.path.join(BERTGO, "data", "emotions.txt")
+    """Canonical display order: the emotions.txt order, as bertgo reports it."""
+    path = os.path.join(DATA, "emotions.txt")
     return [l for l in open(path).read().splitlines() if l.strip()]
 
 
@@ -146,7 +173,8 @@ def to_canonical(matrix: np.ndarray, class_order):
     return matrix[:, perm]
 
 
-def per_emotion_table(protocol: str, seed: int, methods, threshold: float):
+def per_emotion_table(protocol: str, seed: int, methods, threshold: float,
+                      upper_bound_path: str):
     """GoEmotions Table 4 format, for bertgo and each incremental method.
 
     utils/metrics.py never computes per-emotion precision/recall — EmoGrowth
@@ -161,9 +189,8 @@ def per_emotion_table(protocol: str, seed: int, methods, threshold: float):
 
     columns, names = [], []
 
-    probs_path = os.path.join(BERTGO, "output", "run1", "test_probs.npy")
-    if os.path.isfile(probs_path):
-        columns.append(np.load(probs_path))
+    if upper_bound_path and os.path.isfile(upper_bound_path):
+        columns.append(np.load(upper_bound_path))
         names.append("bertgo(UB)")
 
     for m in methods:
@@ -230,14 +257,19 @@ def main():
     ap.add_argument("--protocol", default="B0-I7")
     ap.add_argument("--seed", type=int, default=1993)
     ap.add_argument("--methods", nargs="*",
-                    default=["finetune", "lwf", "ewc", "replay", "agcn",
-                             "krt-r", "aesl"])
+                    default=["finetune", "ewc", "lwf", "er", "rs",
+                             "agcn", "prs", "ocdm", "krt-r", "aesl"])
     ap.add_argument("--per-emotion", action="store_true",
                     help="Also print the GoEmotions Table 4 style breakdown, "
                          "which utils/metrics.py does not produce.")
     ap.add_argument("--threshold", type=float, default=0.3,
                     help="Probability cut for --per-emotion (default 0.3, the "
                          "GoEmotions convention; EmoGrowth uses 0.5).")
+    ap.add_argument("--upper-bound", metavar="NPY", default=DEFAULT_UPPER_BOUND,
+                    help="Saved test probabilities from a joint 28-class run, "
+                         "used as the Upper-bound row. Defaults to "
+                         "../bertgo/output/run1/test_probs.npy; the row is "
+                         "omitted if the file is absent.")
     args = ap.parse_args()
 
     paper = PAPER_AUDIO28.get(args.protocol, {})
@@ -248,10 +280,11 @@ def main():
           f"   {'Avg mAP':>9}{'maF1':>9}{'miF1':>9}{'mAP':>9}")
     print("-" * 90)
 
-    ub = upper_bound_row()
+    ub = upper_bound_row(args.upper_bound)
     print(f"{'Upper-bound':<14}{fmt(ub)}   {fmt(paper.get('Upper-bound'))}")
     if ub is None:
-        print("   (run ../bertgo first to fill the Upper-bound row)")
+        print(f"   (no predictions at {args.upper_bound} — run the joint "
+              f"28-class baseline, or pass --upper-bound)")
 
     notes = []
     for m in args.methods:
@@ -283,7 +316,7 @@ def main():
 
     if args.per_emotion:
         per_emotion_table(args.protocol, args.seed, args.methods,
-                          args.threshold)
+                          args.threshold, args.upper_bound)
 
 
 if __name__ == "__main__":

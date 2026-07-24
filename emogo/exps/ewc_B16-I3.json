@@ -1,7 +1,7 @@
 {
     "prefix": "emogo",
-    "method": "lwf",
-    "protocol": "B0-I4",
+    "method": "ewc",
+    "protocol": "B16-I3",
     "seed": 1993,
     "drop_neutral": false,
     "class_order": "alphabetical",
@@ -19,5 +19,6 @@
     "num_workers": 4,
     "output_dir": "./results",
     "device": "cuda",
-    "lwf_lamda": 3.0
+    "ewc_lamda": 1000.0,
+    "ewc_fishermax": 0.0001
 }

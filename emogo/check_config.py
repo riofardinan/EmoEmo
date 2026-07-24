@@ -1,94 +1,111 @@
-"""Assert that emogo's BERT settings match the verified ../bertgo replication.
+"""Assert this folder's BERT settings still match the verified reference.
 
-Run this before any experiment, and after touching either config:
+    python check_config.py                        # checks defaults
+    python check_config.py exps/lwf_B0-I7.json    # checks one run
+    python check_config.py --against ../bertgo    # also re-check the snapshot
 
-    python check_config.py                       # checks defaults
-    python check_config.py exps/lwf_B0-I7.json   # checks a specific run
+Exits non-zero on any mismatch. `run_all.sh` calls it before every sweep.
 
-Exits non-zero on any mismatch. The point is that ../bertgo is the reference
-configuration (and the Upper-bound row for these tables); if the incremental
-runs quietly drift away from it, every comparison against that baseline stops
-meaning anything.
+The reference lives in `utils/reference.py` as literals, so this folder runs
+standalone — `../bertgo` does not need to exist. Pass `--against <path>` to a
+bertgo checkout to additionally confirm the snapshot has not drifted from it.
 """
 
-import dataclasses
+import argparse
+import importlib.util
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "bertgo"))
 
 from utils.config import Config, load_config  # noqa: E402
-
-# emogo field -> bertgo field. Same name unless stated.
-SHARED = {
-    "model_name": "model_name",
-    "do_lower_case": "do_lower_case",
-    "max_seq_length": "max_seq_length",
-    "classifier_dropout": "classifier_dropout",
-    "batch_size": "train_batch_size",
-    "eval_batch_size": "eval_batch_size",
-    "learning_rate": "learning_rate",
-    "warmup_proportion": "warmup_proportion",
-    "weight_decay_rate": "weight_decay_rate",
-    "adam_beta1": "adam_beta1",
-    "adam_beta2": "adam_beta2",
-    "adam_epsilon": "adam_epsilon",
-    "max_grad_norm": "max_grad_norm",
-    "exclude_from_weight_decay": "exclude_from_weight_decay",
-    "drop_last": "drop_last",
-    "fp16": "fp16",
-}
-
-# Differences that are intentional, with the reason. Printed, never asserted.
-EXPECTED_DIFFERENCES = {
-    "epochs": "bertgo trains 4.0 epochs once; emogo trains 4 epochs *per task* "
-              "(init_epochs/epochs), each with its own warmup+decay cycle.",
-    "seed": "EmoGrowth/PyCIL convention is 1993; bertgo used 42. Affects init "
-            "and shuffling only — keep it fixed across methods within a table.",
-    "threshold": "bertgo binarises at probability > 0.3 (GoEmotions Table 4); "
-                 "emogo binarises at logit > 0 i.e. probability > 0.5, the "
-                 "EmoGrowth utils/metrics.py convention. Raw logits are saved "
-                 "per task so either can be recomputed.",
-    "data": "bertgo uses train/dev/test; emogo uses train/test only, since the "
-            "incremental protocol has no per-task model selection.",
-}
+from utils.reference import (  # noqa: E402
+    BERT_REFERENCE,
+    INTENTIONAL_DIFFERENCES,
+)
 
 
-def main() -> int:
-    import config as bertgo_config  # noqa: E402  (needs sys.path above)
-
-    ref = bertgo_config.Config()
-    cfg = load_config(sys.argv[1]) if len(sys.argv) > 1 else Config()
-    label = sys.argv[1] if len(sys.argv) > 1 else "Config() defaults"
-
-    print(f"Comparing emogo [{label}] against ../bertgo/config.py\n")
-    print(f"{'field':<32}{'emogo':<38}{'bertgo':<38}")
-    print("-" * 108)
+def check_snapshot(cfg, label: str) -> int:
+    print(f"Checking emogo [{label}] against utils/reference.py\n")
+    print(f"{'field':<30}{'this run':<40}{'reference':<40}")
+    print("-" * 110)
 
     bad = []
-    for mine, theirs in SHARED.items():
-        a, b = getattr(cfg, mine), getattr(ref, theirs)
-        ok = a == b
-        flag = "" if ok else "  <-- MISMATCH"
-        name = mine if mine == theirs else f"{mine} = {theirs}"
-        print(f"{name:<32}{str(a):<38}{str(b):<38}{flag}")
+    for field, (expected, _, _) in BERT_REFERENCE.items():
+        actual = getattr(cfg, field)
+        ok = actual == expected
+        print(f"{field:<30}{str(actual):<40}{str(expected):<40}"
+              f"{'' if ok else '  <-- MISMATCH'}")
         if not ok:
-            bad.append((mine, a, theirs, b))
+            bad.append((field, actual, expected))
 
-    print("\nIntentional differences (not asserted):")
-    for key, why in EXPECTED_DIFFERENCES.items():
+    print("\nIntentional differences from bertgo (not asserted):")
+    for key, why in INTENTIONAL_DIFFERENCES.items():
         print(f"  - {key}: {why}")
 
     if bad:
         print(f"\nFAIL — {len(bad)} mismatch(es):")
-        for mine, a, theirs, b in bad:
-            print(f"  emogo.{mine} = {a!r} but bertgo.{theirs} = {b!r}")
+        for field, actual, expected in bad:
+            print(f"  {field} = {actual!r}, reference says {expected!r}")
+            print(f"      ({BERT_REFERENCE[field][2]})")
         return 1
 
-    print(f"\nOK — all {len(SHARED)} shared BERT settings match ../bertgo.")
+    print(f"\nOK — all {len(BERT_REFERENCE)} BERT settings match the reference.")
     return 0
+
+
+def check_against_bertgo(path: str) -> int:
+    """Confirm the frozen snapshot still agrees with a live bertgo checkout."""
+    config_py = os.path.join(path, "config.py")
+    if not os.path.isfile(config_py):
+        print(f"\n--against: no config.py under {path}, skipping.")
+        return 0
+
+    spec = importlib.util.spec_from_file_location("bertgo_config", config_py)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    ref = module.Config()
+
+    print(f"\nCross-checking utils/reference.py against {config_py}")
+    drift = []
+    for field, (expected, their_field, _) in BERT_REFERENCE.items():
+        if not hasattr(ref, their_field):
+            drift.append((field, their_field, expected, "<missing>"))
+            continue
+        theirs = getattr(ref, their_field)
+        if theirs != expected:
+            drift.append((field, their_field, expected, theirs))
+
+    if drift:
+        print(f"DRIFT — {len(drift)} field(s) differ from the live bertgo:")
+        for field, their_field, expected, theirs in drift:
+            print(f"  reference.{field} = {expected!r} but "
+                  f"bertgo.{their_field} = {theirs!r}")
+        print("Update utils/reference.py if the bertgo change was intended.")
+        return 1
+
+    print(f"OK — the snapshot matches bertgo on all {len(BERT_REFERENCE)} fields.")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument("config", nargs="?", default=None,
+                    help="Config JSON to check. Defaults to Config() defaults.")
+    ap.add_argument("--against", metavar="PATH", default=None,
+                    help="Path to a bertgo checkout, to re-verify the snapshot.")
+    args = ap.parse_args()
+
+    cfg = load_config(args.config) if args.config else Config()
+    label = args.config or "Config() defaults"
+
+    status = check_snapshot(cfg, label)
+    if args.against:
+        status |= check_against_bertgo(args.against)
+    return status
 
 
 if __name__ == "__main__":

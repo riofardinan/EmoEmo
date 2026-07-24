@@ -86,6 +86,11 @@ class Config:
     # blocks of that file.
     lwf_lamda: float = 3.0
 
+    # --- EWC --------------------------------------------------------------
+    # `lamda` and `fishermax` in EmoGrowth/models/ewc_ml.py.
+    ewc_lamda: float = 1000.0
+    ewc_fishermax: float = 1e-4
+
     # --- replay buffer (ER / RS / PRS / OCDM) -----------------------------
     memory_size: int = 500
     memory_per_class: int = 20
@@ -148,6 +153,9 @@ class Config:
 # should not print AESL's lambdas or the VAD lexicon path as if it used them.
 METHOD_ONLY_FIELDS: Dict[str, set] = {
     "lwf": {"lwf_lamda"},
+    "ewc": {"ewc_lamda", "ewc_fishermax"},
+    "er": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
+    "rs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
              "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",
