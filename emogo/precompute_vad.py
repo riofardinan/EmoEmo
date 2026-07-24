@@ -19,10 +19,12 @@ Neither uses the gold emotion labels: the future-missing setting assumes no
 access to unseen classes, and a label-derived affective signal would smuggle
 them back in.
 
-Run once per source; training then just loads the cached .npy.
+Both inputs ship in `data/` (NRC-VAD-Lexicon-v2.1.txt and emobank.csv), so the
+folder stays self-contained. Run once per source; training then just loads the
+cached .npy.
 
     python precompute_vad.py --source lexicon
-    python precompute_vad.py --source emobank --emobank ~/Downloads/emobank.csv
+    python precompute_vad.py --source emobank
 
 Output: data/vad_<source>_{train,test}.npy, each [n_samples, 3] float32,
 standardised — the paper standardises its affective ratings before RKD
@@ -185,8 +187,7 @@ def main():
     ap.add_argument("--source", choices=["lexicon", "emobank"], required=True)
     ap.add_argument("--lexicon", default=os.path.join(DATA,
                                                       "NRC-VAD-Lexicon-v2.1.txt"))
-    ap.add_argument("--emobank", default=os.path.expanduser(
-        "~/Downloads/emobank.csv"))
+    ap.add_argument("--emobank", default=os.path.join(DATA, "emobank.csv"))
     ap.add_argument("--model_name", default="bert-base-cased")
     ap.add_argument("--epochs", type=int, default=4)
     ap.add_argument("--batch_size", type=int, default=16)
@@ -209,8 +210,9 @@ def main():
             device = "cpu"
         if not os.path.isfile(args.emobank):
             raise FileNotFoundError(
-                f"EmoBank not found at {args.emobank}. Download emobank.csv "
-                f"from https://github.com/JULIELab/EmoBank and pass --emobank."
+                f"EmoBank not found at {args.emobank}. It ships in data/; if "
+                f"it is missing, fetch emobank.csv from "
+                f"https://github.com/JULIELab/EmoBank or pass --emobank."
             )
         train, test = build_emobank(
             train_texts, test_texts, args.emobank, args.model_name,

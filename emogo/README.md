@@ -105,9 +105,9 @@ trained jointly) is this project's upper bound.
 
 ## Run
 
-This folder is self-contained: the GoEmotions splits and the NRC-VAD lexicon
-ship in `data/`, and all paths resolve relative to the source files rather than
-the working directory.
+This folder is self-contained: the GoEmotions splits, the NRC-VAD lexicon and
+EmoBank all ship in `data/`, and every path resolves relative to the source
+files rather than the working directory.
 
 ```bash
 pip install -r requirements.txt
