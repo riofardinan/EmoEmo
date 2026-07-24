@@ -18,6 +18,7 @@ _REGISTRY = {
     # Both are models/replay.py; the method name picks the buffer strategy.
     "er": Replay,
     "rs": Replay,
+    "prs": Replay,
     "replay": Replay,   # honours cfg.buffer_type instead
 }
 
