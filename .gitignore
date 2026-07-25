@@ -4,3 +4,6 @@ CL/
 bertgo/output
 
 *.zip
+
+analysis/bertgo/
+analysis/emogo/
