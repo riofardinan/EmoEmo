@@ -55,7 +55,10 @@ class Replay(Finetune):
         self._targets_memory_ml: List[List[int]] = []
         # Reservoir sampling counts the whole stream, across tasks.
         self.total_sample = 0
-        self.running_stats = {}
+        # PRS: per-class positive counts, appended one task at a time
+        # (classes are partitioned, so each class's count is finalised in its
+        # own task). `running_statistics` in the original.
+        self.running_statistics: List[float] = []
 
     # ------------------------------------------------------------ plumbing
 
@@ -144,87 +147,110 @@ class Replay(Finetune):
                     self.total_sample, len(self._data_memory), replaced)
 
     def _fill_prs(self, indices, targets):
-        """PRS: Partitioning Reservoir Sampling."""
+        """PRS — Partitioning Reservoir Sampling (Kim et al., 2020).
+
+        Faithful port of `_construct_exemplar_unified_ml_prs` in EmoGrowth's
+        base.py, with one numerical fix that is required at GoEmotions' scale
+        and changes nothing where the original already worked:
+
+          The sample-in weight is  W_c = exp(-N_c) / sum_a exp(-N_a)  over the
+          sample's active classes a. With N in the thousands (GoEmotions has up
+          to 14k positives for a class; Audio28 had at most a few hundred),
+          exp(-N) underflows to 0 and the buffer silently freezes. Since only
+          differences of N matter, W is exactly softmax(-N) over the active
+          classes, computed here by subtracting min(N) first — identical result,
+          no underflow.
+
+        `N` is the per-class positive count, accumulated one task at a time.
+        `rou` (config `prs_rho`) is 0 in the original, which makes the target
+        partition uniform — the whole point of PRS being to balance the buffer.
+        """
+        import numpy as np
+
         m = self.cfg.memory_size
-        rho = getattr(self.cfg, "prs_rho", 0.5)
+        rou = self.cfg.prs_rho
+
+        # Extend running_statistics with this task's per-class counts.
+        task_counts = targets.sum(dim=0).cpu().numpy()
+        self.running_statistics = self.running_statistics + task_counts.tolist()
+        N = np.asarray(self.running_statistics, dtype=np.float64)
+        total = len(N)
+
+        P = np.power(N, rou) / np.sum(np.power(N, rou))
+        M = P * m
         replaced = 0
-        
+
         for row in range(len(indices)):
             self.total_sample += 1
             idx = indices[row]
-            global_tgt = self._global_labels(targets[row])
-            
-            for c in global_tgt:
-                self.running_stats[c] = self.running_stats.get(c, 0) + 1
-                
+            active = self._global_labels(targets[row])   # global class indices
+
             if len(self._data_memory) < m:
                 self._data_memory.append(idx)
-                self._targets_memory_ml.append(global_tgt)
-            else:
-                unique_classes = list(self.running_stats.keys())
-                sum_n_rho = sum(n_c ** rho for n_c in self.running_stats.values())
-                p = {c: (self.running_stats[c] ** rho) / sum_n_rho for c in unique_classes}
-                target_m = {c: m * p[c] for c in unique_classes}
-                
-                sum_y_e_n = sum(math.exp(-self.running_stats[c]) for c in global_tgt)
-                w = {c: (math.exp(-self.running_stats[c]) / sum_y_e_n if sum_y_e_n > 0 else 0) for c in global_tgt}
-                s = sum((target_m[c] / self.running_stats[c]) * w[c] for c in global_tgt if self.running_stats[c] > 0)
-                s = min(max(s, 0.0), 1.0)
-                
-                if random.random() <= s:
-                    l = {c: 0 for c in unique_classes}
-                    for mem_tgt in self._targets_memory_ml:
-                        for c in mem_tgt:
-                            if c in l:
-                                l[c] += 1
-                                
-                    sum_l = sum(l.values())
-                    delta = {c: l[c] - p[c] * sum_l for c in unique_classes}
-                    
-                    pos_delta_classes = [c for c in unique_classes if delta[c] > 0]
-                    if not pos_delta_classes:
-                        slot = random.randint(0, m - 1)
-                        self._data_memory[slot] = idx
-                        self._targets_memory_ml[slot] = global_tgt
-                        replaced += 1
-                        continue
-                        
-                    delta_tensor = torch.tensor([delta[c] for c in pos_delta_classes], dtype=torch.float)
-                    probs = torch.softmax(delta_tensor, dim=0).tolist()
-                    sampled_class = random.choices(pos_delta_classes, weights=probs, k=1)[0]
-                    
-                    Y_indices = [idx_mem for idx_mem, mem_tgt in enumerate(self._targets_memory_ml) if sampled_class in mem_tgt]
-                    q = {c: (0 if delta[c] > 0 else 1) for c in unique_classes}
-                    
-                    max_score = -1
-                    K_indices = []
-                    for idx_mem in Y_indices:
-                        mem_tgt = self._targets_memory_ml[idx_mem]
-                        score = sum(q[c] for c in unique_classes if c not in mem_tgt)
-                        if score > max_score:
-                            max_score = score
-                            K_indices = [idx_mem]
-                        elif score == max_score:
-                            K_indices.append(idx_mem)
-                            
-                    min_dist = float('inf')
-                    best_z = -1
-                    for k in K_indices:
-                        mem_tgt_k = self._targets_memory_ml[k]
-                        C_k = {c: l[c] - (1 if c in mem_tgt_k else 0) for c in unique_classes}
-                        sum_C_k = sum(C_k.values())
-                        dist = sum(abs(C_k[c] - p[c] * sum_C_k) for c in unique_classes)
-                        if dist < min_dist:
-                            min_dist = dist
-                            best_z = k
-                            
-                    if best_z != -1:
-                        self._data_memory[best_z] = idx
-                        self._targets_memory_ml[best_z] = global_tgt
-                        replaced += 1
+                self._targets_memory_ml.append(active)
+                continue
 
-        logger.info("[Replay/prs] stream=%d, buffer=%d, replaced=%d this task",
-                    self.total_sample, len(self._data_memory), replaced)
+            # --- probability of sample-in --------------------------------
+            if not active:
+                continue
+            n_active = N[active]
+            # softmax(-N) over the active classes, underflow-safe.
+            shifted = -(n_active - n_active.min())
+            w_exp = np.exp(shifted)
+            W = w_exp / w_exp.sum()
+            s = float(np.sum(M[active] / n_active * W))
+            if random.random() >= s:
+                continue
+
+            # --- sample-out: evict from the most over-represented class ---
+            L = self._buffer_class_counts(total)
+            delta = L - P * np.sum(L)
+            selected = int(np.argmax(delta))           # argmax(softmax) = argmax
+
+            Y = [i for i, t in enumerate(self._targets_memory_ml)
+                 if selected in t]
+            if not Y:
+                continue
+
+            # Among Y, keep those covering the fewest under-represented classes.
+            q = (delta <= 0).astype(np.float64)
+            n_star = [float(np.dot(self._inv_multihot(self._targets_memory_ml[i],
+                                                      total), q)) for i in Y]
+            best = max(n_star)
+            K = [Y[i] for i, v in enumerate(n_star) if v == best]
+
+            # Tie-break by whichever eviction leaves the buffer closest to P.
+            best_dist, chosen = float("inf"), K[0]
+            for k in K:
+                others = (self._targets_memory_ml[:k]
+                          + self._targets_memory_ml[k + 1:])
+                c_k = self._buffer_class_counts(total, targets_list=others)
+                dist = float(np.sum(np.abs(c_k - P * np.sum(c_k))))
+                if dist < best_dist:
+                    best_dist, chosen = dist, k
+
+            self._data_memory[chosen] = idx
+            self._targets_memory_ml[chosen] = active
+            replaced += 1
+
+        logger.info("[Replay/prs] stream=%d, buffer=%d, replaced=%d this task, "
+                    "N range %d-%d", self.total_sample, len(self._data_memory),
+                    replaced, int(N.min()), int(N.max()))
+
+    def _buffer_class_counts(self, total, targets_list=None):
+        import numpy as np
+        counts = np.zeros(total, dtype=np.float64)
+        for labels in (self._targets_memory_ml if targets_list is None
+                       else targets_list):
+            counts[labels] += 1
+        return counts
+
+    @staticmethod
+    def _inv_multihot(labels, total):
+        import numpy as np
+        v = np.ones(total, dtype=np.float64)
+        v[labels] = 0.0
+        return v
 
     def _fill_ocdm(self, indices, targets):
         """OCDM: pick the buffer whose label distribution is closest to uniform.

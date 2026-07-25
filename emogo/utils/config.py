@@ -99,7 +99,7 @@ class Config:
     memory_per_class: int = 20
     fixed_memory: bool = True
     buffer_type: str = "prs"          # random | rs | prs | ocdm
-    prs_rho: float = 0.5
+    prs_rho: float = 0.0        # `rou` in EmoGrowth base.py; 0 -> uniform target
     # OCDM: number of random candidate subsets searched per task. 10000 in
     # EmoGrowth's base.py.
     ocdm_trials: int = 10000
@@ -176,6 +176,7 @@ METHOD_ONLY_FIELDS: Dict[str, set] = {
     "prs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type", "prs_rho"},
     "ocdm": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type",
              "ocdm_trials"},
+    "agcn": {"feature_dim", "lamda_kd_logits"},
     "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
              "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",

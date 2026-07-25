@@ -1,7 +1,7 @@
 {
     "prefix": "emogo",
-    "method": "prs",
-    "protocol": "B16-I2",
+    "method": "agcn",
+    "protocol": "B0-I7",
     "seed": 1993,
     "drop_neutral": false,
     "class_order": "alphabetical",
@@ -19,9 +19,6 @@
     "num_workers": 4,
     "output_dir": "./results",
     "device": "cuda",
-    "buffer_type": "prs",
-    "memory_size": 500,
-    "memory_per_class": 20,
-    "fixed_memory": true,
-    "prs_rho": 0.0
+    "feature_dim": 64,
+    "lamda_kd_logits": 1.0
 }

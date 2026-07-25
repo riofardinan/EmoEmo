@@ -22,5 +22,6 @@
     "buffer_type": "prs",
     "memory_size": 500,
     "memory_per_class": 20,
-    "fixed_memory": true
+    "fixed_memory": true,
+    "prs_rho": 0.0
 }

@@ -1,11 +1,15 @@
 #!/bin/bash
 # Run methods across the four 28-class protocols.
-#   ./run_all.sh                    -> finetune ewc lwf er rs ocdm aesl (28 runs)
+#   ./run_all.sh                    -> all 9 methods (36 runs)
 #   ./run_all.sh lwf                -> lwf only, 4 runs
+#   ./run_all.sh "ocdm aesl"        -> a subset
 #   ./run_all.sh "finetune lwf" 1994
+#
+# AESL needs its affective cache built first (see precompute_vad.py). The
+# aesl-emobank variant is a separate method name: ./run_all.sh aesl-emobank
 set -e
 
-METHODS=${1:-"finetune ewc lwf er rs ocdm aesl"}
+METHODS=${1:-"finetune ewc lwf er rs ocdm prs agcn aesl"}
 SEED=${2:-1993}
 PROTOCOLS="B0-I7 B0-I4 B16-I3 B16-I2"
 

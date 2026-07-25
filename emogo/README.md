@@ -14,8 +14,7 @@ to the incremental setting rather than to a mistuned backbone.
 | Component | State |
 |---|---|
 | Task protocols, data manager, metrics, trainer | done |
-| `finetune`, `ewc`, `lwf`, `er`, `rs`, `ocdm`, `aesl` | done |
-| `agcn`, `prs` | contributed, **not reviewed clean** — see below |
+| `finetune`, `ewc`, `lwf`, `er`, `rs`, `ocdm`, `prs`, `agcn`, `aesl` | done |
 | `krt-r` | not implemented: no reference code exists |
 
 `utils/factory.py` raises a clear error for a method that is not registered
@@ -28,10 +27,12 @@ paper with no reference implementation, and with no way to verify it the way
 every other method here was verified (loss functions diffed against the
 original to 0.0). Report it as not replicated.
 
-**AGCN and PRS were contributed separately and have open issues** — the graph
-construction differs from `base.py` (diagonal not zeroed, matrix not symmetric)
-and PRS's `exp(-N)` underflows to zero at GoEmotions' class counts, which
-freezes its buffer. They are excluded from `run_all.sh` until fixed.
+**AGCN and PRS** were first contributed with bugs (AGCN dropped the `ya + yb`
+residual and had an asymmetric graph; PRS's `exp(-N)` underflowed and froze its
+buffer). Both were rewritten from the EmoGrowth source and verified: AGCN's
+graph branch and `ya+yb` match the original to 1e-8, PRS's sample-in weight
+matches to 1e-19 while staying finite at GoEmotions' class counts. See the
+method notes below.
 
 ### Comparing against ../bertgo
 
@@ -86,6 +87,8 @@ direct analogue. Its B0-I7 column:
 | ER | 44.7 | 8.1 | 14.4 | 38.0 |
 | RS | 43.7 | 8.1 | 12.3 | 36.5 |
 | OCDM | 44.5 | 8.7 | 12.0 | 38.4 |
+| PRS | 43.3 | 10.8 | 13.5 | 35.5 |
+| AGCN | 47.3 | 35.3 | 50.9 | 41.9 |
 | AESL (theirs) | 49.0 | 38.4 | 51.8 | 42.7 |
 | Upper-bound | – | 51.4 | 61.1 | 57.1 |
 
@@ -350,6 +353,26 @@ commented that out and replaced it with a 10,000-trial random search, and since
 Table 3 came from the random-search version, that is what is reproduced.
 Vectorised here, because the original's Python loop is unusable at GoEmotions'
 scale.
+
+**PRS** — Partitioning Reservoir Sampling. Like RS but it steers the buffer
+toward class balance: each sample's chance of entering is weighted toward the
+rarer of its classes, and eviction targets the most over-represented class.
+The rewrite fixes an underflow that the original form hits only at GoEmotions'
+scale — the sample-in weight `exp(-N)/Σexp(-N)` is exactly a softmax over the
+sample's classes, so it is computed as one (shift by min), matching the
+original to 1e-19 without collapsing to 0/0 when class counts reach the
+thousands. `rou = 0`, so the target partition is uniform — the point of PRS.
+
+**AGCN** — Augmented Graph Convolutional Network. Is this an "image" method?
+No: the graph it convolves over is the emotion label co-occurrence graph, not
+an image-region graph, and it is exactly the augmented ERG that AESL and the
+paper's title are about. AGCN's image-ness lives only in its CNN backbone,
+which — like every method here — is replaced by fine-tuned BERT. The classifier
+is a residual `ya + yb`: a plain linear term plus a graph-propagated term over
+the label adjacency. Loss is LwF's, read through the graph
+(`clf(new) + 1·kd(old)`). The rewrite restores the `ya + yb` residual the first
+contribution dropped and normalises the adjacency once rather than inside the
+per-sample loop; the branch matches the original to 1e-8.
 
 **AESL** — the paper's own method. Four loss terms (Eq. 15): classification,
 emotional-semantics learning over the augmented ERG, logit distillation from
