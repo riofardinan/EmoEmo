@@ -435,6 +435,61 @@ iScience). Here `init_epochs` and `epochs` both default to 4, because the
 GoEmotions paper found more than 4 epochs overfits BERT on this data. Each task
 gets its own warmup+decay cycle, i.e. every task is a fresh fine-tuning run.
 
+### How the relation graph is estimated
+
+Every entry of the ERG is a ratio of counts, and here those counts are small.
+Over the 378 label pairs in `data/train.tsv`: 11% never co-occur, 36% co-occur
+fewer than five times, 50% fewer than ten. The median relative standard error
+of P(i|j) is 30%, and 21% of the estimates have a standard error larger than
+half their own value.
+
+Per task it is worse, because each block is estimated from one task's data over
+one task's classes:
+
+| protocol | empty pairs in the increments | median n | LwF − AGCN |
+|---|---:|---:|---:|
+| B0-I7  | 19% | 5 | 1.2 |
+| B0-I4  | 19% | 5 | 5.4 |
+| B16-I3 | 33% | 1 | 7.8 |
+| B16-I2 | 50% | 1 | 10.6 |
+
+Under B16-I2, three of the six increments have **zero** co-occurrences: the
+block the graph branch propagates over is identically empty. Under B0-I7 the
+base task has 1013 co-occurrences over 21 pairs and no empty cell, and there
+AGCN is level with LwF.
+
+`adj_estimator` selects how the entries are formed:
+
+* `raw` — EmoGrowth Eq. 1, `n_ij / n_i`. **The default**, so every run made
+  before this option existed reproduces. Verified bit-identical to the previous
+  implementation over 200 random cases (max abs diff 0.0).
+* `shrink` — Beta-Binomial posterior mean, `(n_ij + alpha*pi_j) / (n_i + alpha)`,
+  which pulls a poorly supported pair toward the marginal prevalence and leaves
+  a well supported one alone. At n = 2000 the largest change is 0.0006; at
+  n = 12 it is 0.27.
+* `shrink_pool` — as above, but counts rather than probabilities are carried
+  across tasks, so shrinkage knows the true support of the old block instead of
+  treating a block built from two observations like one built from two thousand.
+
+`adj_alpha` sets the strength; negative selects a method-of-moments estimate,
+though a fixed value swept over a small grid is easier to report.
+`adj_subsample` thins the rows the graph is estimated from while the classifier
+still trains on the full task — that separates "how much data estimates the
+graph" from "how much data trains the model", which the benchmark otherwise
+confounds. Note the trade-off `shrink` makes: for a pair that genuinely never
+co-occurs, the raw 0 is right and shrinkage adds a spurious edge. The sweep is
+how you find whether the variance it removes is worth the bias it adds.
+
+```bash
+./run_erg.sh subsample        # causal test: degrade the estimate on B0-I7
+./run_erg.sh alpha            # sweep alpha on B16-I2, where the graph is worst
+./run_erg.sh confirm 10       # chosen alpha, 4 protocols x 3 seeds, + pooled
+```
+
+The prediction is **differential**: large recovery at B16-I2 and B16-I3, little
+change at B0-I7. A uniform improvement everywhere would mean the stated
+mechanism is wrong, and that has to be reported as such.
+
 ## Adding the remaining methods
 
 Each subclasses `models/finetune.Finetune` and overrides one or two hooks:

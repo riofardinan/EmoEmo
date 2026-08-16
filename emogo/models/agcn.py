@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from models.finetune import Finetune
 from nets.agcn_net import IncrementalAGCNNet
-from utils.graph import sym_conditional_prob, sym_conditional_prob_update
+from utils.graph import ERGBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class AGCN(Finetune):
         super().__init__(cfg)
         self._network = IncrementalAGCNNet(cfg)
         self.sigmoid = torch.nn.Sigmoid()
+        self.erg = ERGBuilder(cfg)
         self.label_adj = None
         self._old_label_adj = None
         self.soft_label = None
@@ -52,19 +53,23 @@ class AGCN(Finetune):
         _, tensors, _ = data_manager.get_dataset(
             task, source="train", ret_data=True
         )
+        # Only the graph estimate sees this; the training loop below refetches
+        # the full task from the data manager.
+        tensors = self.erg.subsample(tensors, task)
         train_y = tensors[3]
 
         if task == 0:
-            self.label_adj = sym_conditional_prob(train_y.to(self._device))
+            self.label_adj = self.erg.first(train_y.to(self._device))
         else:
             soft_logits = self._old_soft_labels(tensors)
             known = self._known_classes
             total = known + data_manager.get_task_size(task)
-            self.label_adj, self.soft_label = sym_conditional_prob_update(
+            self.label_adj, self.soft_label = self.erg.grow(
                 soft_logits, self.label_adj, train_y.to(self._device),
                 known, total,
             )
-        logger.info("[AGCN] ERG is now %s", tuple(self.label_adj.shape))
+        logger.info("[AGCN] ERG is now %s, estimator %s",
+                    tuple(self.label_adj.shape), self.erg.describe())
 
         super().incremental_train(data_manager)
 

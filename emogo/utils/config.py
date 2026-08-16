@@ -104,6 +104,24 @@ class Config:
     # EmoGrowth's base.py.
     ocdm_trials: int = 10000
 
+    # --- emotional relation graph (AGCN / AESL) ---------------------------
+    # How the ERG entries are estimated. "raw" is EmoGrowth's Eq. 1 exactly and
+    # is the default, so every result before this option existed reproduces.
+    #   raw          n_ij / n_i, as published
+    #   shrink       Beta-Binomial posterior mean, pulled toward the marginal
+    #   shrink_pool  as above, plus counts accumulated across tasks so the old
+    #                block is no longer frozen at its first estimate
+    # See utils/graph.py for why: half the label pairs here are supported by
+    # fewer than ten co-occurrences, and under B16-I2 three increments have
+    # none at all.
+    adj_estimator: str = "raw"        # raw | shrink | shrink_pool
+    adj_alpha: float = 0.0            # shrinkage strength; < 0 -> method of moments
+    adj_pool_old: bool = False        # accumulate old-old counts (see graph.py)
+    # Fraction of a task's rows used to *estimate* the graph. Training is
+    # unaffected. 1.0 is normal operation; lower values are the controlled test
+    # of whether estimation quality is what drives the graph branch's damage.
+    adj_subsample: float = 1.0
+
     # --- AESL / CLIF ------------------------------------------------------
     feature_dim: int = 64
     lamda_le: float = 0.005
@@ -176,11 +194,13 @@ METHOD_ONLY_FIELDS: Dict[str, set] = {
     "prs": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type", "prs_rho"},
     "ocdm": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type",
              "ocdm_trials"},
-    "agcn": {"feature_dim", "lamda_kd_logits"},
+    "agcn": {"feature_dim", "lamda_kd_logits",
+             "adj_estimator", "adj_alpha", "adj_pool_old", "adj_subsample"},
     "replay": {"memory_size", "memory_per_class", "fixed_memory", "buffer_type"},
     "aesl": {"feature_dim", "lamda_le", "lamda_kd_logits",
              "lamda_kd_relation_data", "lamda_kd_relation_aff", "ld",
-             "vad_source", "vad_lexicon_path", "use_vad_dims"},
+             "vad_source", "vad_lexicon_path", "use_vad_dims",
+             "adj_estimator", "adj_alpha", "adj_pool_old", "adj_subsample"},
 }
 METHOD_ONLY_FIELDS["clif"] = METHOD_ONLY_FIELDS["aesl"]
 

@@ -32,6 +32,18 @@ def parse_args():
     parser.add_argument("--init_epochs", type=int, default=None)
     parser.add_argument("--num_workers", type=int, default=None)
     parser.add_argument("--fp16", type=lambda v: v.lower() == "true", default=None)
+    # Results directory suffix, so a variant does not overwrite the base run.
+    parser.add_argument("--tag", type=str, default=None)
+    # Emotional relation graph (AGCN / AESL only) — see utils/graph.py.
+    parser.add_argument("--adj_estimator", type=str, default=None,
+                        choices=["raw", "shrink", "shrink_pool"])
+    parser.add_argument("--adj_alpha", type=float, default=None,
+                        help="Shrinkage strength; negative selects method of moments.")
+    parser.add_argument("--adj_pool_old", type=lambda v: v.lower() == "true",
+                        default=None)
+    parser.add_argument("--adj_subsample", type=float, default=None,
+                        help="Fraction of rows the graph is estimated from; "
+                             "training is unaffected.")
     return parser.parse_args()
 
 
