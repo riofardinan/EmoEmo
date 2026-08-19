@@ -35,8 +35,15 @@
 set -e
 
 WHAT=${1:-subsample}
-ALPHA=${2:-10}
+ALPHA=${2:-}
 METHODS="agcn aesl"
+
+# `confirm` is 48 runs. It takes the alpha the sweep actually chose, so it
+# refuses to guess one.
+if [ "${WHAT}" = "confirm" ] && [ -z "${ALPHA}" ]; then
+  echo "confirm needs the alpha from './run_erg.sh alpha' — e.g. $0 confirm 5" >&2
+  exit 1
+fi
 
 case "${WHAT}" in
 
@@ -57,7 +64,7 @@ case "${WHAT}" in
       for A in 1 5 10 25 50; do
         echo "=== ${M} / B16-I2 / shrink alpha=${A} / seed 1993 ==="
         python main.py --config "exps/${M}_B16-I2.json" --seed 1993 \
-          --adj_estimator shrink --adj_alpha "${A}" --tag "shrink${A}"
+          --adj_estimator shrink --adj_alpha "${A}" --tag "sweepA${A}"
       done
     done
     ;;
@@ -68,10 +75,10 @@ case "${WHAT}" in
         for S in 1993 1994 1995; do
           echo "=== ${M} / ${P} / shrink alpha=${ALPHA} / seed ${S} ==="
           python main.py --config "exps/${M}_${P}.json" --seed "${S}" \
-            --adj_estimator shrink --adj_alpha "${ALPHA}" --tag "shrink"
+            --adj_estimator shrink --adj_alpha "${ALPHA}" --tag "shrinkA${ALPHA}"
           echo "=== ${M} / ${P} / shrink_pool alpha=${ALPHA} / seed ${S} ==="
           python main.py --config "exps/${M}_${P}.json" --seed "${S}" \
-            --adj_estimator shrink_pool --adj_alpha "${ALPHA}" --tag "pool"
+            --adj_estimator shrink_pool --adj_alpha "${ALPHA}" --tag "poolA${ALPHA}"
         done
       done
     done

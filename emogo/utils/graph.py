@@ -269,7 +269,7 @@ class ERGBuilder:
         self.cfg = cfg
         self.mode = getattr(cfg, "adj_estimator", "raw")
         self.pooled: Optional[ERGEstimator] = None
-        if self.mode not in ("raw", "shrink", "shrink_pool"):
+        if self.mode not in ("raw", "shrink", "shrink_pool", "empty"):
             raise ValueError(f"Unsupported adj_estimator: {self.mode!r}")
 
     # -- helpers --------------------------------------------------------
@@ -291,6 +291,8 @@ class ERGBuilder:
 
     # -- construction ---------------------------------------------------
     def first(self, y: torch.Tensor) -> torch.Tensor:
+        if self.mode == "empty":
+            return self._empty(y.shape[1], y.device, y.dtype)
         alpha = self._alpha_for(y)
         if self.mode == "shrink_pool":
             self.pooled = ERGEstimator(
@@ -304,6 +306,9 @@ class ERGBuilder:
 
     def grow(self, soft_logits: torch.Tensor, label_adj_old: torch.Tensor,
              y: torch.Tensor, known_classes: int, total_classes: int):
+        if self.mode == "empty":
+            return (self._empty(total_classes, y.device, label_adj_old.dtype),
+                    torch.sigmoid(soft_logits))
         alpha = self._alpha_for(y)
         if self.mode == "shrink_pool":
             self.pooled.alpha = alpha
@@ -315,9 +320,23 @@ class ERGBuilder:
             alpha=alpha,
         )
 
+    @staticmethod
+    def _empty(n: int, device, dtype) -> torch.Tensor:
+        """No edges at all.
+
+        `gcn_normalize` zeroes the diagonal and adds the identity, so a zero
+        adjacency normalises to exactly I: every label embedding sees only
+        itself and no message passing happens. That isolates what the graph
+        branch contributes, since AGCN is otherwise LwF's loss evaluated
+        through the graph.
+        """
+        return torch.zeros(n, n, device=device, dtype=dtype)
+
     def describe(self) -> str:
         if self.mode == "raw":
             return "raw (EmoGrowth Eq. 1)"
+        if self.mode == "empty":
+            return "empty (no edges — graph branch ablated)"
         a = float(getattr(self.cfg, "adj_alpha", 0.0))
         alpha = "method-of-moments" if a < 0 else f"alpha={a:g}"
         frac = float(getattr(self.cfg, "adj_subsample", 1.0))

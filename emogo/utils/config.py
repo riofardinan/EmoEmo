@@ -114,7 +114,7 @@ class Config:
     # See utils/graph.py for why: half the label pairs here are supported by
     # fewer than ten co-occurrences, and under B16-I2 three increments have
     # none at all.
-    adj_estimator: str = "raw"        # raw | shrink | shrink_pool
+    adj_estimator: str = "raw"        # raw | shrink | shrink_pool | empty
     adj_alpha: float = 0.0            # shrinkage strength; < 0 -> method of moments
     adj_pool_old: bool = False        # accumulate old-old counts (see graph.py)
     # Fraction of a task's rows used to *estimate* the graph. Training is
