@@ -8,6 +8,9 @@
 #   ./run_gaps.sh emobank     12 runs  — the second VAD source, already configured
 #   ./run_gaps.sh order       60 runs  — class order at 3 seeds, 6 methods
 #   ./run_gaps.sh seeds      180 runs  — extend the main grid from 3 to 8 seeds
+#   ./run_gaps.sh er8         20 runs  — equalised ER to 8 seeds (it is now the
+#                                        runner-up, so it needs LwF's seed count)
+#   ./run_gaps.sh budget      24 runs  — does the ranking survive a bigger buffer?
 set -e
 
 WHAT=${1:-}
@@ -84,8 +87,38 @@ case "${WHAT}" in
     done
     ;;
 
+  # With the budget equalised ER is the runner-up under three of four
+  # protocols, and the LwF-ER gap is what the headline now rests on. A Welch
+  # test between 8 seeds and 3 is underpowered on the smaller arm.
+  er8)
+    for P in ${PROTOCOLS}; do for S in 1996 1997 1998 1999 2000; do
+      echo "=== er / ${P} / equal budget / seed ${S} ==="
+      python main.py --config "exps/er_${P}.json" --seed "${S}" \
+        --fixed_memory false --tag "eq"
+    done; done
+    ;;
+
+  # The open risk. Every rehearsal result here sits at 500 of 43410 training
+  # instances = 1.15%, a budget inherited as an absolute number from a corpus
+  # 29x smaller. Equalising ER already closed the LwF gap to 0.5 mAP at B16-I2
+  # and 0.8 at B0-I4, neither significant. If a larger budget puts a rehearsal
+  # method ahead, the paper's headline inverts — so this has to be known before
+  # anything is written. B0-I7 has the widest gap, B16-I2 the narrowest; the
+  # two bracket the question.
+  budget)
+    for M in er prs; do
+      for MEM in 2000 5000; do
+        for P in B0-I7 B16-I2; do for S in ${SEEDS}; do
+          echo "=== ${M} / ${P} / memory ${MEM} / seed ${S} ==="
+          python main.py --config "exps/${M}_${P}.json" --seed "${S}" \
+            --fixed_memory false --memory_size "${MEM}" --tag "mem${MEM}"
+        done; done
+      done
+    done
+    ;;
+
   *)
-    sed -n '2,12p' "$0" >&2
+    sed -n '2,15p' "$0" >&2
     exit 1
     ;;
 esac
