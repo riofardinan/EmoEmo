@@ -44,10 +44,11 @@ datasets), meta.json and train.log; stage1 also writes model.pt.
     python train.py --mode stage1 --first xed --seed 0
     python train.py --mode stage2 --first xed --space merge --method lwf --seed 0
     python train.py --mode joint --space separate --seed 0
-    python train.py --pair ekfine --mode stage1 --first ekman --seed 0 --out _pilot/results/rp2
+    python train.py --pair ekfine --mode stage1 --first ekman --seed 0 --out results/try
 """
 
 import argparse
+import importlib.util
 import json
 import logging
 import os
@@ -182,7 +183,10 @@ def main():
         h.setFormatter(fmt); log.addHandler(h)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if a.optimizer is None:
-        a.optimizer = "fused" if device.type == "cuda" else "reference"
+        # The fused kernel needs torch.compile, i.e. triton (absent on most Windows
+        # installs). Both optimizers apply the same update rule (utils/fast_adam.py).
+        has_triton = importlib.util.find_spec("triton") is not None
+        a.optimizer = "fused" if device.type == "cuda" and has_triton else "reference"
     set_seed(a.seed)
     tok = BertTokenizerFast.from_pretrained(a.model, do_lower_case=False)
     t_start = time.time()

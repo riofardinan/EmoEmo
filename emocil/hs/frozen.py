@@ -14,9 +14,9 @@ seed. One folder per encoder serves every seed and both orders.
 Configurations are the ones RP3 chose on GoEmotions dev mAP, not re-tuned here:
   bert   bert-base-cased, mean-pooled layer 1, lambda 1000
   qwen   Qwen/Qwen2.5-1.5B, mean-pooled layer 12, lambda 10
-Features come from _pilot/rp3_frozen.py (same pooling, truncation and dtype).
-Standardisation uses all training rows of the pair, as in
-_pilot/analysis/frozen_vs_pilots.py.
+Features come from utils/features.py, the code RP3 used (same pooling and truncation).
+Standardisation uses all training rows of the pair, as in the RP3
+exploration (_pilot/analysis/frozen_vs_pilots.py).
 
     cd emocil
     python -m hs.frozen --pair ekfine                  # results/hs_ekfine/frozen_{bert,qwen}/
@@ -33,7 +33,7 @@ import time
 import numpy as np
 import torch
 
-from _pilot.rp3_frozen import bert_features, qwen_features
+from utils.features import bert_features, qwen_features
 from utils.data import PAIRS, LabelSpace, load
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # emocil/

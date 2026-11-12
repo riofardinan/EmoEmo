@@ -31,7 +31,7 @@ import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 
-from _pilot.analysis.pilot import auroc, best_threshold, f1
+from utils.metrics import auroc, best_threshold, f1
 from utils.data import DATA, labels_of, shared_emotions
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # emocil/

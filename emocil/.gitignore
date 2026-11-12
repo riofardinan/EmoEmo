@@ -4,3 +4,4 @@ _pilot/results/
 *.pt
 *.tgz
 __pycache__/
+.venv/

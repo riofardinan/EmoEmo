@@ -26,7 +26,7 @@ Like `../bertgo` and `../emogo`, this folder is self-contained: its data are in
 | Component | State |
 |---|---|
 | Pilots: step 0 and RP1–RP4 | closed; designs, amendments and results in `_pilot/README.md` |
-| HS2 experiment (RP2, where the true correspondence is known) | design and rule fixed 5 Nov 2026 (see HS2 experiment); code ready, to run on the cloud |
+| HS2 experiment (RP2, where the true correspondence is known) | design and rule fixed 5 Nov 2026 (see HS2 experiment); how to run it: `hs/README.md` |
 | HS1 experiment (RP1) | after HS2 |
 
 Pilot verdicts: RP1 and RP2 **confirmed**; RP3 and RP4 **collapsed**. Two
@@ -50,11 +50,14 @@ nets/bert.py       ../bertgo/model.py, copied unchanged (used by step 0)
 utils/data.py      datasets, XED split, GoEmotions halves, label spaces, masks
 utils/optimization.py   ../emogo/utils/optimization.py (BERT's Adam; optional bias correction)
 utils/fast_adam.py      the same optimizer as one compiled kernel (GPU)
+utils/metrics.py   AUROC, F1, dev thresholds (shared by hs/ and the pilots)
+utils/features.py  frozen BERT / Qwen features (shared by hs/ and the RP3 pilot)
 train.py           one run: stage1 / stage2 (ft, lwf, er, lwf_all, map) / joint; writes to results/
-hs/run.py          HS experiment: all training runs of a pair, resumable
+hs/README.md       step-by-step guide to run the HS2 experiment (any machine)
+hs/run_all.py      the whole experiment in one command (check, runs, baselines, analysis)
+hs/run.py          the training runs of a pair, resumable
 hs/frozen.py       frozen-encoder baselines (RP3 configurations) in the run format
-hs/analyze.py      local analysis: both inventories, readouts, the decision rule
-hs/cloud_run.sh    one-shot cloud script; hs/requirements.txt
+hs/analyze.py      metrics, readouts, the decision rule (CPU)
 _pilot/            closed pilots: scripts, analyses, results, README
 ```
 
@@ -220,39 +223,12 @@ Nothing in the design was changed after these checks.
 - HS1's equivalence gate and per-inventory intercepts are not part of this
   experiment.
 
-### Running on the cloud
+### Running
 
-1. **Pack** (on the laptop, from `EmoGrowth/`; about 10 MB, with no pilot
-   results or weights):
+The step-by-step guide for any machine (the RTX 5070 PC, the laptop, a cloud
+GPU) is `hs/README.md`. In short, from `emocil/`:
 
-        tar czf emocil_hs.tgz --exclude='emocil/_pilot/results' --exclude='emocil/results' \
-            --exclude='__pycache__' emocil
+    python -m hs.run_all --smoke     # setup test, a few minutes
+    python -m hs.run_all             # the experiment (seed 0), then the analysis
 
-2. **Run** (on the cloud):
-
-        tar xzf emocil_hs.tgz && cd emocil
-        pip install torch --index-url <the wheel index matching the machine's CUDA>
-        pip install -r hs/requirements.txt
-        bash hs/cloud_run.sh            # seed 0: 11 training runs, then the frozen baselines
-
-   - The script downloads bert-base-cased and Qwen2.5-1.5B from Hugging Face.
-   - It is resumable: run it again after an interruption.
-   - Any GPU with ≥ 8 GB works.
-   - **RTX 50-series** (Blackwell, compute capability 12.0) needs a PyTorch
-     build for CUDA ≥ 12.8.
-   - **T4** (Turing, 7.5) has no native bfloat16, so `hs/frozen.py` runs Qwen in
-     float32 there. Its `meta.json` records the dtype. Float16 is not used,
-     because it overflowed on Qwen in RP3.
-   - If `torch.compile` fails, run `python -m hs.run --pair ekfine --seeds 0
-     --optimizer reference`, then `python -m hs.frozen --pair ekfine`.
-
-3. **Download** `emocil/hs_ekfine_results.tgz`: logits, logs, `corr.npz` and
-   `env_*.json`, without weights. Unpack it on the laptop:
-
-        cd emocil && mkdir -p results && tar xzf hs_ekfine_results.tgz -C results
-
-4. **Analyse locally** (CPU, a minute):
-
-        cd emocil && ../.venv/bin/python -m hs.analyze --pair ekfine
-        # results/hs_ekfine/analysis/: scores.csv, summary.csv, correspondence.csv, verdict.json
 

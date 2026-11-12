@@ -40,6 +40,7 @@ import numpy as np
 from scipy.stats import rankdata
 
 from utils.data import SHARED_EMOTIONS, labels_of, shared_emotions
+from utils.metrics import auroc, best_threshold, f1  # noqa: F401  (re-exported for the pilot scripts)
 
 NATIVE = {d: labels_of(d) for d in ("go", "xed", "fine", "ekman", "b_eng", "b_hin", "b_sun")}
 ORDERS_BY_PAIR = {"xedgo": {"xed2go": "xed", "go2xed": "go"},
@@ -51,23 +52,6 @@ SHARED = SHARED_EMOTIONS          # set per pair in main(); all six for xedgo an
 METHODS = ["ft", "lwf", "er"]
 
 
-def auroc(s, y):
-    y = y.astype(bool); n1 = y.sum(); n0 = len(y) - n1
-    if n1 == 0 or n0 == 0:
-        return np.nan
-    r = rankdata(s)
-    return (r[y].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
-
-
-def f1(s, y, t):
-    p = s > t; y = y.astype(bool)
-    tp = (p & y).sum(); fp = (p & ~y).sum(); fn = (~p & y).sum()
-    return 2 * tp / max(2 * tp + fp + fn, 1)
-
-
-def best_threshold(s, y):
-    cand = np.unique(np.quantile(s, np.linspace(0, 1, 201)))
-    return max(cand, key=lambda t: f1(s, y, t))
 
 
 def load_runs(root):

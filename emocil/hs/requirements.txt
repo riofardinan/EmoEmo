@@ -1,7 +1,7 @@
 # HS experiments (emocil/hs). Tested locally with Python 3.14.8 and:
 #   torch 2.13.0 (+cu130), transformers 5.14.1, numpy 2.5.1, pandas 3.0.5,
 #   scikit-learn 1.9.0, scipy 1.18.0, triton 3.7.1
-# On the cloud, install the torch build that matches the machine's CUDA first
+# On a new machine, install the torch build that matches the machine's CUDA first
 # (https://pytorch.org/get-started/locally/), then the rest. The bounds below are
 # the oldest versions the code is expected to work with; hs/run.py records the
 # versions actually used in results/hs_<pair>/env_*.json.
