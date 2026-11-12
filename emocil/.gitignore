@@ -1,0 +1,6 @@
+# Results, weights and caches stay out of git (pilot results are ~8 GB).
+results/
+_pilot/results/
+*.pt
+*.tgz
+__pycache__/
